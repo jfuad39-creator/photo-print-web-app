@@ -1,0 +1,3266 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<title>Pas Foto Web - Susun Layout Cetak</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+/* =====================================================================
+ * Pas Foto Print - panel theme (dark, redesign v2.5.2)
+ * ---------------------------------------------------------------------
+ * REDESIGN UI ONLY - tidak ada perubahan logika / algoritma.
+ *  - Accent color: HIJAU TOSCA (teal).
+ *  - Background panel: abu-abu gelap sesuai referensi gambar 3.
+ *  - Garis dekoratif tepi kiri (rail gradient) DIHAPUS.
+ *  - Dropdown preset ukuran diberi spacing lebih lega.
+ *  - Preview fit container (tanpa scroll horizontal).
+ *  - Numfield spinner padding diperlebar agar angka tidak mepet panah.
+ *  - Hint teks dropzone dibuat minimal, tidak mengganggu.
+ *  - Semua class/ID yang dipakai app.js dipertahankan persis.
+ *
+ * FIX v2.5.2:
+ *  1. Teks hint dropzone ("Drag & drop...") dibuat sangat subtle / kecil.
+ *  2. Preview sheet tidak lagi terpotong horizontal.
+ *  3. Preset ukuran foto (2R-8R) dijaga lewat state.js reset setiap sesi.
+ * ===================================================================== */
+
+:root {
+  /* ---- background panel: abu-abu gelap (sesuai gambar referensi 3) ---- */
+  --bg: #3c3c3e;
+  --bg-2: #434345;
+  --bg-3: #4a4a4c;
+  --bg-4: #363638;
+  --line: #555558;
+  --line-soft: #4e4e50;
+  --txt: #f0f0f1;
+  --txt-dim: #a8a8aa;
+  --txt-faint: #808083;
+
+  /* ---- accent: diselaraskan dengan skema warna baru (lihat referensi
+     palet: navy #023852, teal #079fa0, mint #9fd8c5, yellow #fac005,
+     red #dc2e2f). --accent* tetap dipakai UNIVERSAL untuk semua elemen
+     interaktif (tombol, input focus, checkbox/radio, scrollbar, dll)
+     agar seluruh panel tetap konsisten & kontras teks tetap aman;
+     diturunkan dari swatch teal (#079fa0) mengikuti proporsi lightness
+     ramp accent lama. Warna lain di palet dipakai sebagai aksen
+     identitas per-section (lihat --sec1/--sec3/--sec4/--sec5 di bawah,
+     dipakai hanya pada step-badge & ikon judul tiap section). */
+  --accent: #09c8c9;
+  --accent-2: #12f3f5;
+  --accent-3: #079fa0;
+  --accent-ink: #85eff0;
+  --accent-soft: rgba(9, 200, 201, .14);
+  --accent-soft-2: rgba(9, 200, 201, .28);
+  --accent-glow: rgba(9, 200, 201, .35);
+
+  /* ---- aksen identitas per-section (step-badge + ikon judul saja) ----
+     1 Sumber Foto = navy, 2 Order Ukuran = teal (pakai --accent* di atas,
+     tanpa override), 3 Media & Layout = mint, 4 Preview = yellow,
+     5 Slot Editor = red. Setiap pasangan -icon/-ink sudah dicek kontras
+     terhadap --bg-2 (kartu): icon >= 3:1 (elemen grafis/non-teks),
+     ink >= 4.5:1 (teks angka pada badge). */
+  --sec1-icon: #38bbfa;
+  --sec1-ink: #a3daf5;
+  --sec1-soft: rgba(2, 56, 82, .22);
+  --sec1-soft-2: rgba(2, 56, 82, .45);
+
+  --sec3-icon: #9fd8c5;
+  --sec3-ink: #bcdfd3;
+  --sec3-soft: rgba(159, 216, 197, .16);
+  --sec3-soft-2: rgba(159, 216, 197, .38);
+
+  --sec4-icon: #fac005;
+  --sec4-ink: #f6e2a2;
+  --sec4-soft: rgba(250, 192, 5, .16);
+  --sec4-soft-2: rgba(250, 192, 5, .38);
+
+  --sec5-icon: #e97c7d;
+  --sec5-ink: #ebadad;
+  --sec5-soft: rgba(220, 46, 47, .16);
+  --sec5-soft-2: rgba(220, 46, 47, .38);
+
+  /* token tambahan (permintaan: accent colors dibuat warna-warni) - dipakai
+     untuk memperluas identitas warna tiap section ke tombol/kontrol lain
+     (bukan cuma step-badge & ikon judul seperti sebelumnya). --red / trash
+     TIDAK disentuh sama sekali. */
+  --sec4-glow: rgba(250, 192, 5, .35);
+  --sec4-btn-ink: #2e2400;
+  --sec5-glow: rgba(233, 124, 125, .35);
+  --sec5-btn-ink: #3a0f10;
+
+  /* --red TIDAK diubah: dipakai khusus untuk ikon/tombol hapus (trash),
+     supaya warnanya tetap seperti semula sesuai permintaan. */
+  --green: #34d399;
+  --orange: #f5b34c;
+  --red: #f9473a;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
+
+  /* Tinggi topbar aktual (px), dihitung & di-update oleh app.js
+     (syncTopbarHeight, lihat init() + resize listener) supaya elemen lain
+     yang ikut di-pin di bawah topbar (.tab-bar) selalu pas menempel tanpa
+     celah/tabrakan walau topbar-actions wrap ke baris ke-2 di panel
+     sempit. 60px hanya fallback sebelum JS sempat mengukur. */
+  --topbar-h: 60px;
+}
+
+* { box-sizing: border-box; }
+
+/* Reset default browser focus ring (muncul sebagai kotak putih saat klik) pada
+   semua tombol & kontrol interaktif. Cukup di elemen dasarnya (bukan hanya
+   dalam :focus) supaya spesifisitasnya mengalahkan default UA agent stylesheet. */
+button, button:focus,
+input[type="radio"], input[type="radio"]:focus,
+input[type="checkbox"], input[type="checkbox"]:focus,
+select, select:focus {
+  outline: none;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--txt);
+  font: 12px/1.5 "Segoe UI", -apple-system, Tahoma, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #5a5a5d; border-radius: 8px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: var(--accent-3); }
+
+/* ---------- icon system ---------- */
+.icon-sprite { display: none; }
+.ic {
+  width: 15px; height: 15px; flex: 0 0 auto;
+  stroke: currentColor; fill: none;
+  stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
+}
+.ic-sm { width: 13px; height: 13px; }
+.ic-lg { width: 18px; height: 18px; }
+.ic-xl { width: 26px; height: 26px; stroke-width: 1.4; }
+
+/* ---------- shell ---------- */
+main {
+  position: relative;
+  padding: 12px 12px 22px 12px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+/* ---------- tab bar (Setup / Slot Editor) ----------
+   Di-pin (sticky) tepat di bawah topbar supaya tetap kelihatan & bisa
+   diklik saat isi panel di-scroll. top:var(--topbar-h) diukur otomatis
+   dari tinggi topbar sesungguhnya lewat JS (app.js syncTopbarHeight())
+   supaya tetap presisi walau topbar-actions wrap ke baris ke-2 di panel
+   sempit. Background solid (bukan transparan) supaya konten yang lewat
+   di baliknya saat scroll benar-benar tertutup, + shadow tipis di bawah
+   sebagai penanda visual "melayang" di atas konten. */
+.tab-bar {
+  display: flex; gap: 6px; margin-bottom: 14px;
+  background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: 4px;
+  position: sticky; top: var(--topbar-h); z-index: 25;
+  box-shadow: 0 6px 10px -6px rgba(0, 0, 0, .4);
+}
+.tab-btn {
+  flex: 1 1 0; display: flex; align-items: center; justify-content: center; gap: 7px;
+  background: none; border: 0; border-radius: var(--radius-xs);
+  padding: 9px 10px; cursor: pointer; font-family: inherit;
+  font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--txt-dim); transition: background .15s, color .15s;
+}
+.tab-btn .ic { color: var(--txt-faint); transition: color .15s; }
+.tab-btn:hover { color: var(--txt); }
+.tab-btn.active { background: var(--bg-4); color: var(--txt); box-shadow: inset 0 0 0 1px var(--line-soft); }
+.tab-btn.active .ic { color: var(--accent-2); }
+#tabBtnEditor.active { color: var(--sec5-ink); }
+#tabBtnEditor.active .ic { color: var(--sec5-icon); }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ---------- topbar ---------- */
+.topbar {
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap;
+  padding: 9px 14px;
+  background: linear-gradient(180deg, #454547, #3e3e40);
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-txt { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.brand-txt strong { font-size: 13px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
+.brand-sub {
+  font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--txt-faint);
+}
+.logo {
+  width: 32px; height: 32px; flex: 0 0 auto;
+  display: grid; place-items: center;
+}
+.logo .ic { width: 32px; height: 32px; stroke: none; }
+.version-pill {
+  background: var(--bg-3); border: 1px solid var(--line); color: var(--accent-ink);
+  font-size: 9.5px; font-weight: 600; padding: 3px 9px; border-radius: 20px; letter-spacing: .04em;
+  white-space: nowrap;
+}
+/* "Generate" pill (menggantikan teks status "Illustrator ready") - dibuat
+   bisa diklik & fungsinya delegasi ke tombol #btnGenerate yang sama persis
+   (lihat app.js init()), jadi diberi cursor + hover supaya terlihat aktif. */
+.version-pill.action {
+  cursor: pointer;
+  transition: background .13s, border-color .13s, color .13s, transform .08s;
+}
+.version-pill.action:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
+.version-pill.action:active { transform: translateY(1px); }
+.topbar-actions { display: flex; gap: 3px; flex-wrap: wrap; }
+/* Ikon di topbar diperbesar (13px -> 17px -> 21px sesuai permintaan
+   berikutnya). Supaya baris tombolnya tetap muat 1 baris (tidak pecah ke
+   baris ke-2), padding & gap tombol di topbar ini dikecilkan lagi
+   secukupnya untuk mengimbangi tambahan lebar dari ikon yang lebih besar -
+   total lebar baris jadi kira-kira sama seperti sebelumnya (17px), hanya
+   ikonnya yang terlihat jauh lebih besar. */
+.topbar-actions .btn { gap: 3px; }
+.topbar-actions .btn.small { padding: 5px 6px; }
+.topbar-actions .ic.ic-sm { width: 21px; height: 21px; }
+
+/* ---------- card ---------- */
+.card {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 13px 14px 14px;
+}
+.card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.card-head h2 {
+  margin: 0; display: flex; align-items: center; gap: 8px;
+  font-size: 11.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #f2f2f3;
+}
+.card-head h2 .ic { color: var(--accent-2); }
+.step-badge {
+  display: inline-grid; place-items: center;
+  width: 18px; height: 18px; border-radius: 6px;
+  background: var(--accent-soft); border: 1px solid var(--accent-soft-2);
+  color: var(--accent-ink); font-size: 10px; font-weight: 700; letter-spacing: 0;
+}
+.head-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* .card-toggle: header yang sekaligus jadi tombol collapse/expand untuk
+   seluruh isi card di bawahnya (dipakai pertama kali oleh card "Media &
+   Layout" - lihat #mediaLayoutToggle/#mediaLayoutBody di index.html).
+   Perilaku & tampilan chevron sengaja disamakan dengan .structure-toggle
+   supaya kedua jenis panel collapsible di panel ini terasa konsisten. */
+.card-toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: 100%; background: none; border: 0; padding: 0; margin: 0;
+  cursor: pointer; font-family: inherit; text-align: left;
+}
+.card-toggle .chevron { width: 14px; height: 14px; color: var(--txt-faint); transition: transform .18s; flex: 0 0 auto; }
+.card-toggle[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+
+/* ---------- aksen warna-warni per section (hanya badge nomor + ikon
+   judul kartu, dan ikon label-mini di dalam kartu yang sama) ----------
+   Section 2 "Order Ukuran" sengaja tidak di-override: sudah memakai
+   warna teal bawaan (--accent-2 / --accent-ink / --accent-soft*). */
+.card--navy .step-badge { background: var(--sec1-soft); border-color: var(--sec1-soft-2); color: var(--sec1-ink); }
+.card--navy .card-head h2 .ic { color: var(--sec1-icon); }
+.card--navy .label-mini .ic { color: var(--sec1-icon); }
+
+.card--mint .step-badge { background: var(--sec3-soft); border-color: var(--sec3-soft-2); color: var(--sec3-ink); }
+.card--mint .card-head h2 .ic { color: var(--sec3-icon); }
+.card--mint .label-mini .ic { color: var(--sec3-icon); }
+
+.card--yellow .step-badge { background: var(--sec4-soft); border-color: var(--sec4-soft-2); color: var(--sec4-ink); }
+.card--yellow .card-head h2 .ic { color: var(--sec4-icon); }
+.card--yellow .label-mini .ic { color: var(--sec4-icon); }
+
+.card--red .step-badge { background: var(--sec5-soft); border-color: var(--sec5-soft-2); color: var(--sec5-ink); }
+.card--red .card-head h2 .ic { color: var(--sec5-icon); }
+.card--red .label-mini .ic { color: var(--sec5-icon); }
+
+/* ---- ekstensi warna-warni: class yang DIPAKAI BERSAMA di lebih dari 1
+   section (tombol accent-soft/outline-accent/primary, fokus input, swatch
+   background) di-override per section di sini supaya tiap section konsisten
+   pakai warna identitasnya sendiri. Section 2 "Order Ukuran" & elemen global
+   (topbar, toast, scrollbar) SENGAJA tidak di-override, tetap warna teal
+   bawaan (--accent*), jadi tetap ada 1 warna "netral". ---- */
+.card--navy .btn.accent-soft { background: var(--sec1-soft); border-color: var(--sec1-soft-2); color: var(--sec1-ink); }
+.card--navy .btn.accent-soft:hover { background: var(--sec1-soft-2); border-color: var(--sec1-icon); color: #eaf7ff; }
+.card--navy .bg-swatch.active, .card--navy .bg-custom.active { border-color: var(--sec1-icon); box-shadow: 0 0 0 2px var(--sec1-soft); }
+
+.card--mint .input:focus { border-color: var(--sec3-icon); box-shadow: 0 0 0 2px var(--sec3-soft); }
+
+.card--yellow .btn.outline-accent { border-color: var(--sec4-icon); color: var(--sec4-ink); }
+.card--yellow .btn.outline-accent:hover { background: var(--sec4-soft); border-color: var(--sec4-icon); }
+.card--yellow .btn.primary {
+  background: linear-gradient(135deg, var(--sec4-ink), var(--sec4-icon) 60%);
+  border-color: var(--sec4-icon); color: var(--sec4-btn-ink);
+  box-shadow: 0 5px 16px var(--sec4-glow);
+}
+
+.card--red .btn.accent-soft { background: var(--sec5-soft); border-color: var(--sec5-soft-2); color: var(--sec5-ink); }
+.card--red .btn.accent-soft:hover { background: var(--sec5-soft-2); border-color: var(--sec5-icon); color: #fff0ef; }
+.card--red .btn.primary {
+  background: linear-gradient(135deg, var(--sec5-ink), var(--sec5-icon) 60%);
+  border-color: var(--sec5-icon); color: var(--sec5-btn-ink);
+  box-shadow: 0 5px 16px var(--sec5-glow);
+}
+.card--red .input:focus { border-color: var(--sec5-icon); box-shadow: 0 0 0 2px var(--sec5-soft); }
+.card--red .bg-swatch.active, .card--red .bg-custom.active { border-color: var(--sec5-icon); box-shadow: 0 0 0 2px var(--sec5-soft); }
+
+/* ---------- buttons ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: var(--bg-3);
+  color: var(--txt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 7px 11px;
+  cursor: pointer;
+  font-size: 11.5px;
+  font-family: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background .13s, border-color .13s, color .13s, transform .08s, box-shadow .13s;
+}
+.btn:hover { background: #545456; border-color: #666669; }
+.btn:active { transform: translateY(1px); }
+.btn:focus { outline: none; }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btn.small { padding: 6px 9px; font-size: 11px; }
+.btn.ghost { background: transparent; }
+.btn.ghost:hover { background: var(--bg-3); }
+.btn.outline-accent {
+  background: transparent; border-color: var(--accent-3); color: var(--accent-ink);
+}
+.btn.outline-accent:hover { background: var(--accent-soft); border-color: var(--accent); }
+.btn.accent-soft {
+  background: var(--accent-soft); border-color: var(--accent-soft-2); color: var(--accent-ink); font-weight: 600;
+}
+.btn.accent-soft:hover { background: var(--accent-soft-2); border-color: var(--accent); color: #d6fff8; }
+.btn.primary {
+  background: linear-gradient(135deg, var(--accent-2), var(--accent) 45%, var(--accent-3));
+  border-color: var(--accent-3); color: #04302a; font-weight: 700;
+  box-shadow: 0 5px 16px var(--accent-glow);
+}
+.btn.primary:hover { filter: brightness(1.07); }
+/* Tombol "Generate ke Illustrator" - gradient ungu > pink > hijau tosca
+   sesuai referensi desain, dibedakan dari .btn.primary default (teal)
+   supaya tidak ikut mengubah warna tombol lain yang juga pakai class ini
+   (mis. #btnBgApplySize di atas). */
+#btnGenerate.btn.primary {
+  background: linear-gradient(90deg, #ff4698 0%, #ff7a59 45%, #12f3f5 100%);
+  /* FIX: base .btn menetapkan "border: 1px solid var(--line)" (abu-abu).
+     Sebelumnya di sini hanya border-color yang di-override jadi
+     transparent, TANPA menghapus lebar bordernya (tetap 1px, hanya
+     warnanya transparan). Border transparan 1px yang digabung dengan
+     border-radius 999px (bentuk pill penuh) menimbulkan seam/garis samar
+     tepat di kedua ujung yang paling melengkung, karena rendering lapisan
+     border (walau transparan) tidak selalu menyatu sempurna dengan
+     lapisan background gradient di baliknya - celah anti-aliasing itu
+     yang membuat sedikit warna var(--line) (abu-abu, dari .btn) terlihat
+     bocor di kedua ujung tombol. Pakai "border: none" (menghapus SELURUH
+     lapisan border, bukan cuma warnanya) supaya tidak ada lapisan border
+     yang perlu di-render sama sekali - gradient tombol jadi mengisi
+     bentuk pill dengan bersih tanpa seam di kedua ujung. */
+  border: none; color: #ffffff;
+  box-shadow: 0 5px 16px rgba(255, 70, 152, .3), 0 5px 18px rgba(18, 243, 245, .18);
+  /* Bentuk pill (stadium) + kapsul ikon terpisah menempel di ujung kanan,
+     mengikuti referensi desain tombol yang diminta. Warna (gradient di atas),
+     warna teks, dan ikon (bolt) SENGAJA tidak diubah sama sekali - hanya
+     bentuk/susunannya yang direvisi. */
+  display: flex; align-items: stretch; justify-content: flex-start;
+  gap: 0;
+  border-radius: 999px;
+  padding: 4px;
+}
+#btnGenerate.btn.primary:hover { filter: brightness(1.07); }
+.btn-generate-label {
+  flex: 1 1 auto;
+  display: flex; align-items: center; justify-content: center;
+  padding: 8px 6px 8px 22px;
+}
+.btn-generate-icon {
+  flex: 0 0 auto;
+  width: 36px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .22);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .32), 0 2px 6px rgba(0, 0, 0, .18);
+}
+.btn-generate-icon .ic { width: 17px; height: 17px; }
+/* "Terapkan ke Ukuran Ini" - solid orange, dibedakan dari tombol primary
+   (teal/gradient) supaya tidak ikut berubah warna tombol Generate lain
+   yang juga pakai class .btn.primary. */
+#btnBgApplySize.btn.primary {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: #3a2100;
+  box-shadow: 0 5px 16px rgba(245, 179, 76, .35);
+}
+#btnBgApplySize.btn.primary:hover { filter: brightness(1.07); }
+.btn.danger { background: transparent; border-color: var(--line); color: #ff8f8a; }
+.btn.danger:hover { background: rgba(249, 71, 58, .12); border-color: #6b3436; }
+.btn.block { width: 100%; padding: 12px; font-size: 12.5px; }
+#btnPrintPackage { margin-top: 10px; }
+.btn.icon { padding: 7px; }
+.btn[disabled] { opacity: .4; cursor: not-allowed; }
+.btn-col { display: flex; flex-direction: column; gap: 3px; padding: 8px 6px; font-size: 10.5px; }
+.btn-col .ic { width: 16px; height: 16px; }
+
+/* ---------- inputs ---------- */
+.input, select.input, input.input {
+  width: 100%;
+  background: var(--bg-4);
+  border: 1px solid var(--line);
+  color: var(--txt);
+  border-radius: var(--radius-xs);
+  padding: 7px 9px;
+  font-size: 11.5px;
+  font-family: inherit;
+  transition: border-color .13s, box-shadow .13s;
+}
+.input:hover { border-color: #6a6a6d; }
+.input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.input.tiny { width: auto; padding: 6px 8px; }
+select.input {
+  -webkit-appearance: none; appearance: none;
+  /* height + line-height eksplisit (bukan cuma padding vertikal) supaya
+     teks pilihan select tidak terpotong di bagian atas - beberapa versi
+     Chromium/CEF menghitung kotak konten select dari line-height, bukan
+     dari padding, jadi kalau cuma andalkan padding teks bisa ke-clip. */
+  height: 32px;
+  line-height: 30px;
+  padding: 0 28px 0 9px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--txt-dim) 50%),
+                    linear-gradient(135deg, var(--txt-dim) 50%, transparent 50%);
+  background-position: calc(100% - 16px) calc(50% + 1px), calc(100% - 11px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+select.input.tiny {
+  height: 30px;
+  line-height: 28px;
+  padding: 0 34px 0 10px;
+  min-width: 120px;
+  background-position: calc(100% - 16px) calc(50% + 1px), calc(100% - 11px) calc(50% + 1px);
+}
+label { display: block; font-size: 10px; color: var(--txt-dim); letter-spacing: .03em; }
+label > .input, label > .numfield { margin-top: 5px; }
+.field-label {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--txt-dim); font-weight: 600;
+}
+.field-label .ic { width: 12px; height: 12px; color: var(--txt-faint); }
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 11px 12px;
+  /* rata bawah: kalau label di satu kolom kepanjangan sampai turun 2 baris
+     (mis. "Margin kiri/kanan/bawah (mm)"), kolom sebelahnya yang labelnya
+     cuma 1 baris (mis. "Gap (mm)") ikut didorong ke bawah juga, supaya
+     kotak inputnya tetap sejajar sebaris - bukan cuma nempel rata atas. */
+  align-items: end;
+}
+.custom-size-fields { grid-column: 1 / -1; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 11px 12px; align-items: end; }
+
+.position-field { grid-column: 1 / -1; }
+.position-options { display: flex; gap: 8px; margin-top: 6px; }
+.pos-radio {
+  flex: 1 1 0; display: flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: 11px; color: var(--txt-dim); cursor: pointer; text-align: center; white-space: nowrap;
+  padding: 7px 4px; border: 1px solid var(--line); border-radius: var(--radius-xs);
+  background: rgba(0, 0, 0, .10); transition: .13s;
+}
+.pos-radio input[type="radio"] {
+  width: 13px; height: 13px; margin: 0; flex: 0 0 auto; cursor: pointer; accent-color: var(--sec3-icon);
+}
+.pos-radio:hover { border-color: #5a5a5d; background: rgba(159, 216, 197, .10); color: var(--txt); }
+.pos-radio:has(input:checked),
+.pos-radio.active {
+  border-color: var(--sec3-soft-2); background: var(--sec3-soft); color: var(--sec3-ink);
+}
+
+/* ---------- numeric spinner (dibuat oleh app.js) ---------- */
+.numfield { position: relative; display: block; }
+.numfield input {
+  -moz-appearance: textfield;
+  padding-right: 26px;
+}
+.numfield input::-webkit-outer-spin-button,
+.numfield input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.numfield .spin {
+  position: absolute; right: 3px; top: 3px; bottom: 3px;
+  display: flex; flex-direction: column; width: 18px;
+  border-radius: 4px; overflow: hidden;
+}
+.numfield .spin button {
+  flex: 1 1 50%; background: transparent; border: 0; color: var(--txt-faint);
+  cursor: pointer; font-size: 7px; line-height: 1; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: .12s;
+  outline: none; -webkit-appearance: none;
+}
+.numfield .spin button:focus,
+.numfield .spin button:focus-visible,
+.numfield .spin button:active { outline: none; box-shadow: none; }
+.numfield .spin button:hover { color: #063b30; background: var(--sec3-icon); }
+
+/* ---------- checkbox & radio ---------- */
+input[type="radio"], input[type="checkbox"] { accent-color: var(--sec3-icon); }
+
+/* ---------- photo source ---------- */
+.dropzone {
+  border: 1px dashed #606063;
+  border-radius: var(--radius);
+  padding: 12px;
+  background: rgba(0, 0, 0, .10);
+  transition: .15s;
+}
+.dropzone.over { border-color: var(--sec1-icon); background: var(--sec1-soft); }
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(94px, 1fr));
+  gap: 10px;
+}
+.photo-grid:empty { display: none; }
+.photo-card {
+  background: var(--bg-3); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); overflow: hidden; position: relative;
+  transition: border-color .13s, transform .13s;
+}
+.photo-card:hover { border-color: var(--sec1-icon); transform: translateY(-1px); }
+.photo-card .thumb { width: 100%; height: 84px; object-fit: cover; display: block; background: #2a2a2c; }
+.photo-card .ph {
+  width: 100%; height: 84px; display: grid; place-items: center;
+  color: var(--txt-faint); font-size: 22px; background: #2e2e30;
+}
+.photo-card .meta { padding: 6px 8px; display: flex; align-items: center; gap: 6px; }
+.photo-card .dot {
+  width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; background: var(--sec1-icon);
+  box-shadow: 0 0 0 2px rgba(56, 187, 250, .18);
+}
+.photo-card .nm {
+  font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+  background: transparent; border: 0; color: var(--txt); padding: 0; font-family: inherit;
+}
+.photo-card .nm:focus { outline: none; color: var(--sec1-ink); }
+.photo-card .del {
+  position: absolute; top: 5px; right: 5px; width: 20px; height: 20px; border-radius: 50%;
+  background: rgba(30, 30, 32, .82); color: #fff; border: 1px solid rgba(255, 255, 255, .14);
+  cursor: pointer; line-height: 1; font-size: 12px; display: grid; place-items: center; padding: 0;
+}
+.photo-card .del:hover { background: var(--red); border-color: var(--red); }
+
+.photo-card .bg-row {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  padding: 0 8px 7px;
+}
+.bg-swatch, .bg-custom {
+  width: 14px; height: 14px; border-radius: 50%; flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, .22); cursor: pointer; padding: 0;
+  background-color: #fff; transition: transform .1s, border-color .1s;
+}
+.bg-swatch:hover, .bg-custom:hover { transform: scale(1.12); }
+.bg-swatch.active, .bg-custom.active {
+  border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.bg-swatch.none {
+  background-color: #3a3a3c;
+  background-image:
+    linear-gradient(45deg, #6b6b6d 25%, transparent 25%, transparent 75%, #6b6b6d 75%),
+    linear-gradient(45deg, #6b6b6d 25%, transparent 25%, transparent 75%, #6b6b6d 75%);
+  background-size: 6px 6px;
+  background-position: 0 0, 3px 3px;
+}
+.bg-custom {
+  position: relative; overflow: hidden;
+  background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);
+}
+.bg-custom input[type="color"] {
+  position: absolute; inset: -4px; width: 22px; height: 22px;
+  border: 0; padding: 0; cursor: pointer; background: none;
+}
+
+/* ---------- FIX 1: hint teks dibuat sangat subtle / kecil ----------
+   Teks "Drag & drop file JPG / PNG / TIFF ke sini, atau klik + Tambah Foto."
+   sebelumnya terlalu menonjol dan mengganggu. Sekarang dibuat sangat kecil,
+   dim, dan tanpa ikon besar supaya dropzone terlihat bersih. */
+.hint {
+  color: var(--txt-faint); font-size: 10px; margin: 6px 2px 0; line-height: 1.4;
+}
+.hint .ic { display: none; }
+.hint b { color: var(--txt-dim); font-weight: 600; }
+#photoHint {
+  text-align: center; font-size: 9.5px; color: #6a6a6d; margin: 4px 0 0; padding: 0;
+}
+#photoHint .ic { display: none; }
+#photoHint span { display: inline; }
+#orderHint {
+  display: flex; align-items: center; gap: 6px;
+  color: var(--txt-faint); font-size: 10px; margin: 6px 2px 0;
+}
+#orderHint .ic { display: inline-block; width: 13px; height: 13px; vertical-align: -2px; margin-right: 4px; }
+.photo-grid + .hint { margin-top: 10px; }
+
+/* ---------- order rows ---------- */
+.order-legend {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font-size: 9.5px; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--txt-faint); padding: 0 2px 8px; border-bottom: 1px solid var(--line-soft);
+}
+.order-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.order-legend i {
+  width: 4px; height: 4px; border-radius: 50%; background: #5c5c5f; display: inline-block;
+}
+.order-list { display: flex; flex-direction: column; }
+.order-row {
+  display: grid; grid-template-columns: 52px 1fr 1fr 1fr 32px;
+  gap: 10px; align-items: center;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.order-row.has-src { grid-template-columns: 52px 1fr 1fr 1fr minmax(90px, 1.4fr) 32px; }
+.order-row:last-child { border-bottom: 0; }
+.order-row .tag {
+  font-weight: 700; font-size: 11px; color: var(--accent-ink);
+  background: var(--accent-soft); border: 1px solid var(--accent-soft-2);
+  border-radius: 6px; padding: 5px 0; text-align: center; letter-spacing: .02em;
+}
+.order-row .x {
+  display: grid; place-items: center;
+  background: transparent; border: 0; color: var(--red); cursor: pointer;
+  justify-self: center; line-height: 1; padding: 5px; border-radius: 6px; transition: .12s;
+}
+.order-row .x .ic { width: 18px; height: 18px; stroke-width: 2; color: var(--red); }
+.order-row .x:hover { color: #fff; background: var(--red); }
+.order-row .x:hover .ic { color: #fff; }
+
+/* ---------- media & struktur output ---------- */
+/* #mediaLayoutBody (.media-layout-grid) collapsible, default tersembunyi -
+   persis seperti .structure-body di bawahnya, dibuka lewat #mediaLayoutToggle. */
+.media-layout-grid { display: none; gap: 18px; align-items: stretch; flex-wrap: wrap; animation: structureOpen .15s ease; }
+.media-layout-grid.open { display: flex; }
+.media-fields { flex: 1 1 320px; min-width: 0; }
+.structure-panel {
+  flex: 1 1 250px; min-width: 0;
+  border-left: 1px solid var(--line); padding-left: 18px;
+}
+.label-mini {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--txt-dim); margin-bottom: 11px; font-weight: 700;
+}
+.label-mini .ic { width: 13px; height: 13px; color: var(--accent-2); }
+
+.structure-toggle {
+  width: 100%; background: none; border: 0; padding: 5px 6px; margin: -5px -6px 0; cursor: pointer;
+  font-family: inherit; text-align: left; border-radius: var(--radius-xs);
+}
+.structure-toggle:hover { color: var(--txt); background: var(--bg-3); }
+.structure-toggle .chevron { margin-left: auto; width: 12px; height: 12px; color: var(--txt-faint); transition: transform .18s; }
+.structure-toggle[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+.structure-body {
+  margin-top: 11px;
+  animation: structureOpen .15s ease;
+}
+.structure-panel .structure-body { display: none; }
+.structure-panel .structure-body.open { display: flex; }
+@keyframes structureOpen { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+.radio-row { display: flex; flex-direction: column; gap: 9px; }
+.radio, .check {
+  display: flex; gap: 9px; align-items: flex-start;
+  font-size: 11.5px; color: var(--txt); cursor: pointer; line-height: 1.45;
+  padding: 8px 9px; border: 1px solid transparent; border-radius: var(--radius-xs);
+  background: rgba(0, 0, 0, .10);
+  transition: .13s;
+}
+.radio:hover, .check:hover { border-color: #5a5a5d; background: rgba(159, 216, 197, .10); }
+.radio input[type="radio"], .check input[type="checkbox"] {
+  width: 14px; height: 14px; margin: 1px 0 0; flex: 0 0 auto; cursor: pointer;
+}
+.radio b, .check b { font-weight: 600; }
+.radio i, .check i {
+  font-style: normal; color: var(--sec3-ink); font-size: 9.5px;
+  border: 1px solid var(--sec3-soft-2); background: var(--sec3-soft);
+  border-radius: 4px; padding: 1px 5px; margin-left: 4px; white-space: nowrap;
+}
+.radio small, .check small { display: block; color: var(--txt-faint); font-size: 10px; margin-top: 2px; }
+
+/* ---------- FIX 2: preview - sheet tidak lagi terpotong ----------
+   Masalah: preview-box memiliki overflow-x:hidden yang memotong sheet
+   saat skala sheet mendekati lebar container. Sheet dan stage-row juga
+   perlu menyesuaikan lebar secara otomatis.
+
+   Solusi:
+   - preview-box tetap overflow-y:auto tapi overflow-x sekarang auto
+     (bukan hidden) supaya kalau masih mepet bisa scroll, tapi utamanya
+     scale dihitung lebih aman di app.js.
+   - sheet-stage dan stage-row tidak dibatasi max-width yang rigid.
+   - sheet element dibiarkan flex-shrink agar menyesuaikan. */
+.preview-card { display: flex; flex-direction: column; }
+.preview-box {
+  background: var(--bg-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 10px;
+  min-height: 340px;
+  max-height: 68vh;
+  overflow-y: auto;
+  overflow-x: auto;
+  display: flex; flex-direction: column; align-items: center; gap: 18px;
+}
+.preview-box:empty::after {
+  content: "Preview lembar akan tampil di sini.";
+  color: var(--txt-faint); font-size: 11px; margin: auto;
+}
+.sheet-block {
+  display: flex; flex-direction: column; gap: 8px;
+  align-items: flex-start;
+  width: 100%;
+}
+.sheet-caption {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; color: var(--txt-dim); font-weight: 600; letter-spacing: .02em;
+}
+.sheet-caption::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--sec4-icon); box-shadow: 0 0 0 3px var(--sec4-soft); flex: 0 0 auto;
+}
+.sheet-stage {
+  display: flex; flex-direction: column;
+}
+.stage-row {
+  display: flex; align-items: flex-start;
+}
+
+.ruler-h {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 15px; padding: 0 3px; margin-bottom: 5px;
+  font-size: 9px; color: var(--txt-faint); letter-spacing: .04em;
+  border-bottom: 1px solid var(--line-soft);
+}
+.ruler-v {
+  writing-mode: vertical-rl;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 3px 0; margin-right: 5px;
+  font-size: 9px; color: var(--txt-faint); letter-spacing: .04em;
+  border-right: 1px solid var(--line-soft);
+  flex: 0 0 auto;
+}
+.ruler-h > *, .ruler-v > * { font-style: normal; font-weight: 500; opacity: .95; }
+
+.sheet {
+  position: relative;
+  background: #fff;
+  border: 1px solid var(--sec4-icon);
+  border-radius: 3px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .35), 0 0 0 1px rgba(250, 192, 5, .22);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.sheet-guide {
+  position: absolute;
+  border: 1px dashed rgba(196, 144, 0, .75);
+  pointer-events: none;
+}
+.slot {
+  position: absolute;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 23, .55);
+  overflow: hidden;
+  cursor: grab;
+}
+.slot.rot { box-shadow: inset 0 0 0 1px rgba(196, 144, 0, .85); }
+/* tahap 3: slot yang lagi dipilih di Slot Editor - outline tebal + sedikit
+   terangkat (drop-shadow) supaya jelas beda dari slot lain sebelum kartu
+   editor sempat dibaca. cursor:grabbing dipakai container-level lewat JS
+   (lihat app.js dragState) tapi disederhanakan di sini jadi cursor tetap
+   grab; drag tetap jalan lewat mousedown/mousemove di document. */
+.slot.selected {
+  box-shadow: 0 0 0 2px var(--sec5-icon, #ff6b5e), inset 0 0 0 1px rgba(15, 23, 23, .55);
+  z-index: 2;
+}
+.slot:active { cursor: grabbing; }
+.slot-photo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transform-origin: center center;
+}
+.slot-border {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid rgba(15, 23, 23, .85);
+  pointer-events: none;
+}
+
+.msg {
+  margin: 10px 2px 0; font-size: 10.5px; color: var(--txt-dim);
+  display: flex; align-items: center; gap: 7px; line-height: 1.45; min-height: 16px;
+}
+.msg:empty { display: none; }
+.msg.ok { color: var(--sec4-ink); }
+.msg.err { color: #ff9c95; }
+.msg::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; background: currentColor; opacity: .8;
+}
+.generate-wrap { margin-top: 12px; }
+.generate-note {
+  margin: 8px 2px 0; font-size: 10px; color: var(--txt-faint); text-align: center;
+}
+
+/* ---------- editor ---------- */
+.sel-info {
+  background: var(--bg-3); border: 1px solid var(--line); border-left: 2px solid var(--sec5-icon);
+  border-radius: var(--radius-xs); padding: 9px 11px; font-size: 11px; color: var(--txt);
+  margin-bottom: 12px; word-break: break-all; line-height: 1.5;
+}
+.sel-info b { color: var(--sec5-ink); }
+.sel-info.empty { color: var(--txt-faint); border-left-color: #5a5a5d; }
+
+/* indikator "background saat ini" (lihat bgLiveIndicatorHtml di app.js) -
+   dot kecil menampilkan warna background HASIL BACAAN ULANG dari dokumen
+   (bukan pendingBg), jadi selalu sinkron dengan yang benar-benar sudah
+   diterapkan ke slot terpilih. Pola checker dipakai utk transparan (sama
+   seperti .bg-swatch.none), pola diagonal 2 warna dipakai utk "campuran"
+   saat slot yang diseleksi punya background berbeda-beda. */
+.bg-live { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.bg-live-dot {
+  width: 13px; height: 13px; border-radius: 50%; flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, .3); background-color: #fff;
+}
+.bg-live-dot.none {
+  background-color: #3a3a3c;
+  background-image:
+    linear-gradient(45deg, #6b6b6d 25%, transparent 25%, transparent 75%, #6b6b6d 75%),
+    linear-gradient(45deg, #6b6b6d 25%, transparent 25%, transparent 75%, #6b6b6d 75%);
+  background-size: 6px 6px; background-position: 0 0, 3px 3px;
+}
+.bg-live-dot.mixed {
+  background: linear-gradient(135deg, #e0201f 0 50%, #1a56db 50% 100%);
+}
+
+/* .editor-panel membungkus #selInfo + #editorBody jadi satu kotak sendiri
+   (gaya sama seperti .pad-box) supaya area yang bisa meredup saat tidak ada
+   seleksi punya batas kotak yang jelas, terpisah dari .bg-editor-box di
+   atasnya - lihat catatan di index.html. */
+.editor-panel {
+  background: rgba(0, 0, 0, .12); border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm); padding: 11px; margin-bottom: 12px;
+}
+
+.editor { transition: opacity .15s; }
+.editor.disabled { opacity: .42; pointer-events: none; filter: saturate(.4); }
+
+/* .bg-editor-box berdiri sebagai kotak terpisah yang SETARA dengan
+   .editor-panel di bawahnya (bukan lanjutannya) - TIDAK ikut opacity/
+   saturate milik #editorBody.disabled. Sengaja dibuat border netral,
+   SAMA seperti .pad-box/.editor-panel (bukan diberi aksen warna di
+   tepi) supaya seragam dengan kotak-kotak lain di kartu ini - status
+   "selalu aktif" cukup dikomunikasikan lewat kepala kotak sendiri
+   (.bg-editor-head) + badge hijau (.bg-editor-badge), tidak perlu
+   garis tepi tambahan yang malah bikin kotak ini terlihat menonjol
+   sendiri dan tidak balance dengan elemen lain. Menggantikan
+   pendekatan divider sebelumnya. */
+.bg-editor-box {
+  background: rgba(0, 0, 0, .12); border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm); padding: 11px; margin-bottom: 12px;
+}
+.bg-editor-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-bottom: 9px;
+}
+.bg-editor-badge {
+  display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto;
+  background: rgba(52, 211, 153, .14); border: 1px solid rgba(52, 211, 153, .4);
+  color: #7be7c3; font-size: 9px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; padding: 3px 8px 3px 7px; border-radius: 20px;
+  white-space: nowrap;
+}
+.bg-editor-badge .ic { width: 10px; height: 10px; }
+.bg-editor-box .bg-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }
+.bg-editor-box .bg-row .bg-swatch, .bg-editor-box .bg-row .bg-custom { width: 18px; height: 18px; }
+.bg-editor-box .bg-custom input[type="color"] { inset: -4px; width: 26px; height: 26px; }
+.bg-apply-row { display: flex; gap: 6px; margin-top: 7px; }
+.bg-apply-row .btn { flex: 1; }
+.bg-apply-row select { min-width: 0; }
+.bg-apply-row:first-of-type { margin-top: 0; }
+
+.pad-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.pad-box {
+  background: rgba(0, 0, 0, .12); border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm); padding: 11px;
+}
+.dpad {
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+  gap: 5px; max-width: 148px; margin: 0 auto;
+}
+.dpad .btn { padding: 7px 0; }
+.dpad .dpad-center {
+  display: grid; place-items: center; color: var(--txt-faint);
+  border: 1px dashed var(--line); border-radius: var(--radius-xs); font-size: 9px;
+}
+.dpad .dpad-center .ic { width: 13px; height: 13px; color: var(--sec5-icon); }
+
+.dpad.dpad-plus {
+  grid-template-areas:
+    ".    up     ."
+    "left center right"
+    ".    down   .";
+}
+.dpad.dpad-plus [data-dup="up"] { grid-area: up; }
+.dpad.dpad-plus [data-dup="down"] { grid-area: down; }
+.dpad.dpad-plus [data-dup="left"] { grid-area: left; }
+.dpad.dpad-plus [data-dup="right"] { grid-area: right; }
+.dpad.dpad-plus .dpad-center { grid-area: center; }
+
+.zoom-row { display: flex; gap: 6px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+.zoom-row .btn { flex: 1 1 auto; }
+.tool-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(74px, 1fr));
+  gap: 6px; margin-top: 10px;
+}
+
+/* ---------- toast ---------- */
+.toast {
+  position: fixed; left: 50%; bottom: 16px; transform: translate(-50%, 24px);
+  background: #2a2a2c; border: 1px solid var(--line); border-left: 3px solid var(--accent);
+  color: var(--txt); padding: 10px 16px; border-radius: 9px; font-size: 11.5px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .45);
+  opacity: 0; pointer-events: none; transition: .22s ease; z-index: 90; max-width: 88vw;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast.ok { border-left-color: var(--accent); }
+.toast.err { border-left-color: var(--red); }
+
+/* ---------- modal: buat dokumen baru (pilih ukuran A4/A5) ---------- */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(10, 10, 12, .6);
+  display: none; align-items: center; justify-content: center;
+  padding: 20px; opacity: 0; transition: opacity .15s ease;
+}
+.modal-overlay.open { display: flex; opacity: 1; }
+.modal-box {
+  width: 100%; max-width: 320px;
+  background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .5);
+  transform: translateY(6px) scale(.98); transition: transform .15s ease;
+}
+.modal-overlay.open .modal-box { transform: translateY(0) scale(1); }
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.modal-head h3 { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 13.5px; color: var(--txt); }
+.modal-head h3 .ic { color: var(--accent-2); }
+.modal-x {
+  background: transparent; border: none; color: var(--txt-dim);
+  font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 7px; border-radius: var(--radius-xs);
+}
+.modal-x:hover { background: var(--bg-3); color: var(--txt); }
+.modal-desc { margin: 8px 0 14px; font-size: 11.5px; color: var(--txt-dim); }
+.modal-size-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.size-choice {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  background: var(--bg-3); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 14px 8px 12px; cursor: pointer; font-family: inherit;
+  transition: border-color .13s, background .13s, transform .08s;
+}
+.size-choice:hover { border-color: var(--accent); background: var(--accent-soft); }
+.size-choice:active { transform: translateY(1px); }
+.size-choice-swatch { display: block; background: #f2f2f3; border-radius: 2px; box-shadow: 0 2px 6px rgba(0, 0, 0, .35); }
+.size-choice-a4 { width: 42px; height: 59px; }
+.size-choice-a5 { width: 33px; height: 47px; }
+.size-choice-name { font-size: 13px; font-weight: 700; color: var(--txt); }
+.size-choice-dim { font-size: 10px; color: var(--txt-dim); }
+
+/* =====================================================================
+ * RESPONSIVE - panel CEP bisa dilebarkan / disempitkan
+ * ===================================================================== */
+
+@media (max-width: 430px) {
+  main { padding: 10px 10px 20px 10px; }
+  .card { padding: 11px 11px 12px; }
+  .order-row { grid-template-columns: 44px 1fr 1fr 1fr 28px; gap: 7px; }
+  .order-row.has-src { grid-template-columns: 44px 1fr 1fr 1fr 28px; row-gap: 7px; }
+  .order-row.has-src .src { grid-column: 1 / -1; grid-row: 2; }
+  .order-row.has-src .x { grid-column: 5; grid-row: 1; }
+  .structure-panel { border-left: 0; border-top: 1px solid var(--line); padding-left: 0; padding-top: 14px; }
+  .preview-box { padding: 12px 6px; min-height: 260px; }
+  .brand-sub { display: none; }
+}
+
+@media (min-width: 620px) {
+  .preview-box { min-height: 420px; }
+}
+
+@media (min-width: 940px) {
+  main { padding: 14px 14px 26px 14px; }
+  .preview-box { min-height: 520px; max-height: calc(100vh - 260px); }
+}
+
+@media (min-width: 1280px) {
+  .preview-box { min-height: 620px; padding: 22px 14px; }
+  .card { padding: 15px 16px 16px; }
+}
+
+@media (max-height: 620px) {
+  .preview-box { max-height: 46vh; min-height: 220px; }
+  .topbar { position: relative; }
+  /* topbar sudah tidak sticky di panel pendek (di atas) - tab-bar ikut
+     dilepas juga, kalau tidak dia akan "mengambang" nempel ke top yang
+     salah karena acuannya (topbar) sudah tidak lagi menempel di 0. */
+  .tab-bar { position: relative; top: auto; }
+}
+
+/* ---------- layout 3 kolom resizable (Setup | Preview | Slot Editor) ----------
+   Di layar sempit (default) .layout tetap 1 kolom seperti semula -
+   Setup, Preview, Slot Editor tersusun berurutan ke bawah (resizer
+   disembunyikan, tidak makan tempat). Di layar lebar (>=1100px), 3 kolom
+   berdampingan dgn 2 pemisah yang bisa di-drag (lihat app.js
+   initResizableLayout()): lebar kolom kiri/kanan disimpan lewat CSS var
+   --w-a/--w-c yang di-update langsung dari JS (setProperty di
+   #layoutRoot, bukan lewat class), kolom tengah (Preview) otomatis
+   mengisi sisa lewat minmax(...,1fr). Tiap kolom scroll SENDIRI-SENDIRI
+   (independent scroll, pola umum aplikasi 3-panel spt Figma/Photoshop)
+   supaya kolom Setup yang pendek tidak ikut kebawa scroll panjang oleh
+   kolom Preview yang bisa berisi banyak lembar. */
+.resizer { display: none; }
+
+@media (min-width: 1100px) {
+  body { height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+  .topbar { flex: 0 0 auto; }
+  main { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 14px; }
+
+  .layout {
+    height: 100%;
+    grid-template-columns: var(--w-a, 360px) 10px minmax(380px, 1fr) 10px var(--w-c, 360px);
+    gap: 0 12px;
+    align-items: stretch;
+  }
+  .col { height: 100%; overflow-y: auto; overflow-x: hidden; padding-right: 2px; }
+
+  .resizer { display: block; position: relative; cursor: col-resize; touch-action: none; }
+  .resizer::after {
+    content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px;
+    margin-left: -1px; background: var(--line); transition: background .12s, width .12s;
+  }
+  .resizer:hover::after, .resizer.active::after { background: var(--sec5-icon, #e97c7d); width: 3px; margin-left: -1.5px; }
+
+  /* kolom Slot Editor selalu kelihatan sekarang (bukan cuma muncul saat
+     ada seleksi) - beri sedikit ekstra ruang scroll di bawah biar tombol
+     terakhir (tool-grid) tidak mepet ujung. */
+  .col-editor .card { margin-bottom: 4px; }
+}
+
+</style>
+</head>
+<body>
+
+<svg style="display:none">
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8.5" cy="8.5" r="1.6" fill="currentColor"/><path d="M21 15l-5-5-4 4-3-3-6 6" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-rows" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="15" width="18" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="14" y="3" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="14" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="14" y="14" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h2M8 12h12M4 18h14M20 18h0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="16" cy="6" r="2" fill="currentColor"/><circle cx="6" cy="12" r="2" fill="currentColor"/><circle cx="18" cy="18" r="2" fill="currentColor"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M3 13l9 5 9-5M3 17l9 5 9-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5.3L21 9M20 12a8 8 0 0 1-14 5.3L3 15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M21 4v5h-5M3 20v-5h5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v5M12 8h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="1.6"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></symbol>
+  <symbol id="i-crop" viewBox="0 0 24 24"><path d="M6.5 2.5v15h15"/><path d="M2.5 6.5h15v15"/></symbol>
+  <symbol id="i-zoom-in" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20.5 20.5l-4.8-4.8"/><path d="M11 8.5v5M8.5 11h5"/></symbol>
+  <symbol id="i-zoom-out" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20.5 20.5l-4.8-4.8"/><path d="M8.5 11h5"/></symbol>
+  <symbol id="i-flip-h" viewBox="0 0 24 24"><path d="M12 3v18" stroke-dasharray="2.5 2.5"/><path d="M8.5 7.5L4 12l4.5 4.5z"/><path d="M15.5 7.5L20 12l-4.5 4.5z"/></symbol>
+  <symbol id="i-flip-v" viewBox="0 0 24 24"><path d="M3 12h18" stroke-dasharray="2.5 2.5"/><path d="M7.5 8.5L12 4l4.5 4.5z"/><path d="M7.5 15.5L12 20l4.5-4.5z"/></symbol>
+  <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20.2 4.5V9h-4.5"/><rect x="9" y="9" width="6" height="6" rx="1"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11.5" height="11.5" rx="2"/><path d="M15.5 6.5v-1A2 2 0 0 0 13.5 3.5h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h1"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M6.5 14.5L12 9l5.5 5.5"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="M14.5 6.5L9 12l5.5 5.5"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="M9.5 6.5L15 12l-5.5 5.5"/></symbol>
+</svg>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo-dot"></span>
+    <div class="brand-txt">
+      <b>Pas Foto Web</b>
+      <span class="brand-sub">Susun layout cetak pas foto - offline</span>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <button id="btnReset" class="btn small ghost" title="Reset semua parameter ke default">
+      <svg class="ic ic-sm"><use xlink:href="#i-refresh"/></svg>Reset
+    </button>
+  </div>
+</header>
+
+<main>
+  <div class="layout" id="layoutRoot">
+    <div class="col col-a" id="colSetup">
+
+      <!-- ============ 1. PHOTO SOURCE ============ -->
+      <section class="card card--navy">
+        <div class="card-head">
+          <h2><span class="step-badge">1</span><svg class="ic"><use xlink:href="#i-image"/></svg>Sumber Foto</h2>
+          <div class="head-actions">
+            <button id="btnAddPhoto" class="btn small accent-soft"><svg class="ic ic-sm"><use xlink:href="#i-plus"/></svg>Tambah Foto</button>
+            <input id="filePicker" type="file" accept="image/jpeg,image/png,.tif,.tiff" multiple style="display:none" />
+          </div>
+        </div>
+
+        <div class="dropzone" id="dropZone">
+          <div class="photo-grid" id="photoGrid"></div>
+          <p id="photoHint">
+            <svg class="ic"><use xlink:href="#i-upload"/></svg>
+            <span>Drag &amp; drop file JPG / PNG / TIFF ke sini, atau klik <b>+ Tambah Foto</b>. Foto tetap di komputer kamu - tidak diunggah ke mana pun.</span>
+          </p>
+        </div>
+      </section>
+
+      <!-- ============ 2. ORDER ============ -->
+      <section class="card">
+        <div class="card-head">
+          <h2><span class="step-badge">2</span><svg class="ic"><use xlink:href="#i-rows"/></svg>Order Ukuran</h2>
+          <div class="head-actions">
+            <select id="sizePreset" class="input tiny"></select>
+            <button id="btnAddItem" class="btn small accent-soft"><svg class="ic ic-sm"><use xlink:href="#i-plus"/></svg>Tambah</button>
+          </div>
+        </div>
+
+        <div class="order-legend">
+          <span>Ukuran</span><i></i>
+          <span>Lebar mm</span><i></i>
+          <span>Tinggi mm</span><i></i>
+          <span>Qty</span>
+        </div>
+        <div class="order-list" id="orderList"></div>
+        <p class="hint" id="orderHint">
+          <svg class="ic"><use xlink:href="#i-info"/></svg>
+          <span>Belum ada ukuran. Tambahkan minimal satu baris.</span>
+        </p>
+        <button id="btnPrintPackage" class="btn block outline-accent"><svg class="ic"><use xlink:href="#i-grid"/></svg>Paket Cetak Foto (4x6=4, 3x4=4, 2x3=6)</button>
+      </section>
+
+      <!-- ============ 3. MEDIA & OPTIONS ============ -->
+      <section class="card card--mint">
+        <div class="card-head">
+          <button type="button" class="card-toggle" id="mediaLayoutToggle" aria-expanded="false">
+            <h2><span class="step-badge">3</span><svg class="ic"><use xlink:href="#i-sliders"/></svg>Media &amp; Layout</h2>
+            <svg class="ic chevron"><use xlink:href="#i-down"/></svg>
+          </button>
+        </div>
+
+        <div class="media-layout-grid" id="mediaLayoutBody">
+          <div class="media-fields">
+            <div class="field-grid">
+              <label>Media
+                <select id="mediaType" class="input">
+                  <option value="A3">A3</option>
+                  <option value="A4">A4</option>
+                  <option value="A5">A5</option>
+                  <option value="A6">A6</option>
+                  <option value="LETTER">Letter</option>
+                  <option value="4R">4R (102x152mm)</option>
+                  <option value="10R">10R (254x305mm)</option>
+                  <option value="10x15">10x15 cm</option>
+                  <option value="20x30">20x30 cm</option>
+                  <option value="CUSTOM">Custom</option>
+                </select>
+              </label>
+
+              <label>Orientation
+                <select id="orientation" class="input">
+                  <option value="portrait">Portrait</option>
+                  <option value="landscape">Landscape</option>
+                  <option value="auto">Otomatis (paling efisien)</option>
+                </select>
+              </label>
+
+              <label title="Marjin kiri, kanan &amp; bawah artboard. Marjin atas tetap 5 mm secara default, tidak mengikuti nilai ini.">Margin kiri/kanan/bawah (mm)
+                <input id="margin" class="input" type="number" min="0" step="0.5" value="4.5" />
+              </label>
+
+              <label>Gap (mm)
+                <input id="gap" class="input" type="number" min="0" step="0.5" value="0" />
+              </label>
+
+              <label>Offset Border (mm)
+                <input id="offsetBorder" class="input" type="number" min="0" step="0.1" value="1.5" />
+              </label>
+
+              <label>Rotasi otomatis
+                <select id="rotateMode" class="input">
+                  <option value="auto">Otomatis</option>
+                  <option value="off">Nonaktif</option>
+                  <option value="force">Paksa 90&deg;</option>
+                </select>
+              </label>
+
+              <div class="position-field">
+                <label>Posisi Hasil</label>
+                <div class="position-options">
+                  <label class="pos-radio">
+                    <input type="radio" name="position" value="left" />
+                    <span>Kiri Atas</span>
+                  </label>
+                  <label class="pos-radio">
+                    <input type="radio" name="position" value="center" checked />
+                    <span>Tengah Atas</span>
+                  </label>
+                  <label class="pos-radio">
+                    <input type="radio" name="position" value="right" />
+                    <span>Kanan Atas</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="custom-size-fields grid2" id="customSizeFields" style="display:none">
+                <label>Lebar Custom (mm)
+                  <input id="customWidth" class="input" type="number" min="10" step="1" value="210" />
+                </label>
+                <label>Tinggi Custom (mm)
+                  <input id="customHeight" class="input" type="number" min="10" step="1" value="297" />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="structure-panel">
+            <button type="button" class="structure-toggle label-mini" id="structureToggle" aria-expanded="false">
+              <svg class="ic"><use xlink:href="#i-layers"/></svg>Struktur &amp; Output
+              <svg class="ic chevron"><use xlink:href="#i-down"/></svg>
+            </button>
+            <div class="structure-body" id="structureBody">
+              <div class="radio-row">
+                <label class="radio">
+                  <input type="radio" name="fitMode" value="fill" checked />
+                  <span><b>Isi penuh (crop)</b><i>Default</i>
+                    <small>Foto mengisi penuh slot, kelebihan terpotong.</small>
+                  </span>
+                </label>
+                <label class="radio">
+                  <input type="radio" name="fitMode" value="fit" />
+                  <span><b>Muat penuh (letterbox)</b>
+                    <small>Foto utuh tanpa terpotong, sisa area kosong.</small>
+                  </span>
+                </label>
+                <label class="check">
+                  <input type="checkbox" id="noBorder" />
+                  <span><b>Tanpa border</b>
+                    <small>Cetak tanpa garis border sama sekali.</small>
+                  </span>
+                </label>
+                <label class="check">
+                  <input type="checkbox" id="cutGuide" />
+                  <span><b>Cutting guide</b>
+                    <small>Garis panduan potong di tiap lembar.</small>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="resizer" id="resizerLeft" role="separator" aria-orientation="vertical" aria-label="Atur lebar kolom Setup" tabindex="0"></div>
+
+    <div class="col col-preview" id="colPreview">
+
+      <!-- ============ 4. PREVIEW ============
+           Rendering DOM absolut (bukan <canvas>) - PERSIS pola yang
+           sudah dipakai preview() versi CEP (div per-slot + background-image
+           utk foto, bukan Illustrator-dependent sama sekali - lihat app.js).
+           Portable hampir 1:1, tinggal cocokkan foto lewat sourceId. -->
+      <section class="card preview-card card--yellow">
+        <div class="card-head">
+          <h2><span class="step-badge">4</span><svg class="ic"><use xlink:href="#i-eye"/></svg>Preview</h2>
+          <button id="btnPreview" class="btn small outline-accent"><svg class="ic ic-sm"><use xlink:href="#i-refresh"/></svg>Refresh Preview</button>
+        </div>
+        <div class="preview-box" id="preview"></div>
+        <p class="msg" id="previewMsg"></p>
+      </section>
+    </div>
+
+    <div class="resizer" id="resizerRight" role="separator" aria-orientation="vertical" aria-label="Atur lebar kolom Slot Editor" tabindex="0"></div>
+
+    <div class="col col-editor" id="colEditor">
+
+      <!-- ============ 5. SLOT EDITOR ============
+           Dulu (sebelum layout 3-kolom) kartu ini disembunyikan total
+           sampai user klik slot. Sekarang jadi kolom TETAP di kanan
+           (permanen kelihatan, konsisten dengan pola tab "Slot Editor"
+           versi CEP yang juga selalu ada) - saat belum ada slot terpilih,
+           isinya digantikan pesan kosong (`.sel-info.empty`, sama seperti
+           `#selInfo` versi CEP) dan kontrolnya (`.editor`) diberi class
+           `.disabled` (redup + non-aktif, style-nya sudah ada di
+           theme.css) alih-alih hilang total - lihat renderEditor() di
+           app.js. Markup & class CSS SENGAJA disamakan dengan tab "Slot
+           Editor" versi CEP (.editor-panel/.pad-grid/.pad-box/.dpad/
+           .zoom-row/.tool-grid) - tapi PERILAKU beda karena tidak ada
+           dokumen Illustrator terpisah: di sini kita SENDIRI sumber
+           datanya (lihat catatan overrides/duplicates di state.js).
+           Beberapa penyesuaian dari versi CEP:
+            - "Rotate 90°" cuma memutar KONTEN foto (bukan frame+border)
+              supaya tidak nabrak slot tetangga tanpa layout-engine ikut
+              menghitung ulang - lihat CLAUDE.md.
+            - "Ganti Foto" jadi dropdown foto yang sudah diunggah
+              (bukan buka file dialog baru).
+            - "Hapus Slot" cuma berlaku utk slot HASIL DUPLIKAT - slot
+              asli hasil algoritma packing selalu muncul lagi mengikuti
+              qty di Order Ukuran, jadi yang relevan buat slot asli
+              adalah "Reset Edit" (kembalikan ke kondisi default). -->
+      <section class="card card--red" id="editorCard">
+        <div class="card-head">
+          <h2><svg class="ic"><use xlink:href="#i-target"/></svg>Slot Editor</h2>
+          <button id="btnEditorClose" class="btn small ghost" title="Tutup / batal pilih slot">&times;</button>
+        </div>
+        <div class="editor-panel">
+        <div class="sel-info empty" id="editorInfo">Klik salah satu foto di Preview untuk mulai edit (posisi, crop/zoom, rotate, flip, ganti foto/background, duplikat).</div>
+
+        <div id="editorBody" class="editor disabled">
+        <div class="pad-grid">
+          <div class="pad-box">
+            <div class="field-label"><svg class="ic"><use xlink:href="#i-target"/></svg>Posisi slot (mm)</div>
+            <div class="dpad">
+              <button class="btn" data-nudge="-1,-1" title="Kiri atas">&#8598;</button>
+              <button class="btn" data-nudge="0,-1" title="Atas"><svg class="ic"><use xlink:href="#i-up"/></svg></button>
+              <button class="btn" data-nudge="1,-1" title="Kanan atas">&#8599;</button>
+              <button class="btn" data-nudge="-1,0" title="Kiri"><svg class="ic"><use xlink:href="#i-left"/></svg></button>
+              <span class="dpad-center"><svg class="ic"><use xlink:href="#i-target"/></svg></span>
+              <button class="btn" data-nudge="1,0" title="Kanan"><svg class="ic"><use xlink:href="#i-right"/></svg></button>
+              <button class="btn" data-nudge="-1,1" title="Kiri bawah">&#8601;</button>
+              <button class="btn" data-nudge="0,1" title="Bawah"><svg class="ic"><use xlink:href="#i-down"/></svg></button>
+              <button class="btn" data-nudge="1,1" title="Kanan bawah">&#8600;</button>
+            </div>
+            <p class="hint"><span>Atau langsung drag foto di preview.</span></p>
+          </div>
+
+          <div class="pad-box">
+            <div class="field-label"><svg class="ic"><use xlink:href="#i-crop"/></svg>Crop foto (mm)</div>
+            <div class="dpad">
+              <button class="btn" data-crop="-1,-1" title="Kiri atas">&#8598;</button>
+              <button class="btn" data-crop="0,-1" title="Atas"><svg class="ic"><use xlink:href="#i-up"/></svg></button>
+              <button class="btn" data-crop="1,-1" title="Kanan atas">&#8599;</button>
+              <button class="btn" data-crop="-1,0" title="Kiri"><svg class="ic"><use xlink:href="#i-left"/></svg></button>
+              <span class="dpad-center"><svg class="ic"><use xlink:href="#i-crop"/></svg></span>
+              <button class="btn" data-crop="1,0" title="Kanan"><svg class="ic"><use xlink:href="#i-right"/></svg></button>
+              <button class="btn" data-crop="-1,1" title="Kiri bawah">&#8601;</button>
+              <button class="btn" data-crop="0,1" title="Bawah"><svg class="ic"><use xlink:href="#i-down"/></svg></button>
+              <button class="btn" data-crop="1,1" title="Kanan bawah">&#8600;</button>
+            </div>
+            <div class="zoom-row">
+              <button class="btn small" data-zoom="-10"><svg class="ic ic-sm"><use xlink:href="#i-zoom-out"/></svg>-10%</button>
+              <button class="btn small" data-zoom="-5">-5%</button>
+              <button class="btn small" data-zoom="5">+5%</button>
+              <button class="btn small" data-zoom="10"><svg class="ic ic-sm"><use xlink:href="#i-zoom-in"/></svg>+10%</button>
+            </div>
+            <div class="bg-apply-row">
+              <button id="btnResetCrop" class="btn small ghost" title="Reset crop &amp; posisi foto ke tengah">Reset Crop</button>
+            </div>
+          </div>
+
+          <div class="pad-box">
+            <div class="field-label"><svg class="ic"><use xlink:href="#i-copy"/></svg>Duplikat slot (arah)</div>
+            <div class="dpad dpad-plus">
+              <button class="btn" data-dup="up" title="Duplikat ke atas"><svg class="ic"><use xlink:href="#i-up"/></svg></button>
+              <button class="btn" data-dup="left" title="Duplikat ke kiri"><svg class="ic"><use xlink:href="#i-left"/></svg></button>
+              <span class="dpad-center"><svg class="ic"><use xlink:href="#i-copy"/></svg></span>
+              <button class="btn" data-dup="right" title="Duplikat ke kanan"><svg class="ic"><use xlink:href="#i-right"/></svg></button>
+              <button class="btn" data-dup="down" title="Duplikat ke bawah"><svg class="ic"><use xlink:href="#i-down"/></svg></button>
+            </div>
+          </div>
+
+          <div class="pad-box">
+            <div class="field-label"><svg class="ic"><use xlink:href="#i-image"/></svg>Ganti Foto</div>
+            <select id="editorSourceSelect" class="input"></select>
+            <div class="field-label" style="margin-top:10px"><svg class="ic"><use xlink:href="#i-image"/></svg>Background</div>
+            <div class="bg-row" id="editorBgRow"></div>
+          </div>
+        </div>
+
+        <div class="tool-grid">
+          <button id="btnFlipH" class="btn btn-col"><svg class="ic"><use xlink:href="#i-flip-h"/></svg>Flip H</button>
+          <button id="btnFlipV" class="btn btn-col"><svg class="ic"><use xlink:href="#i-flip-v"/></svg>Flip V</button>
+          <button id="btnRotate" class="btn btn-col"><svg class="ic"><use xlink:href="#i-rotate"/></svg>Rotate 90&deg;</button>
+          <button id="btnResetSlot" class="btn btn-col"><svg class="ic"><use xlink:href="#i-refresh"/></svg>Reset Edit</button>
+          <button id="btnDeleteSlot" class="btn btn-col danger" style="display:none"><svg class="ic"><use xlink:href="#i-trash"/></svg>Hapus Duplikat</button>
+        </div>
+        </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script>
+/* ==== src/js/state.js ==== */
+/* =====================================================================
+ * src/js/state.js - state form web app (versi standalone, non-CEP).
+ * ---------------------------------------------------------------------
+ * ADAPTASI dari client/js/state.js milik plugin CEP "Pas Foto Production
+ * Manager". Struktur data & buildJob() DISENGAJA dibuat semirip mungkin
+ * dengan versi asli supaya client/js/layout-engine.js (PFLayout) bisa
+ * dipakai ulang TANPA PERUBAHAN SAMA SEKALI (murni kalkulasi geometri,
+ * lihat catatan kepala file layout-engine.js).
+ *
+ * Perbedaan dari versi CEP:
+ *  - Foto TIDAK punya filesystem path (tidak ada akses Node/filesystem
+ *    di browser murni). Sebagai gantinya tiap foto menyimpan `file`
+ *    (objek File asli dari <input type=file>/drag-drop, dipakai nanti
+ *    oleh canvas renderer utk menggambar pixel) + `thumb` (blob URL
+ *    utk ditampilkan sebagai <img>, lihat URL.createObjectURL).
+ *  - field `sourcePath` di buildJob() SENGAJA dikosongkan ("") - di versi
+ *    CEP dipakai host/main.jsx utk `new File(path)` membuka file dari
+ *    disk, tidak relevan di sini. Identitas foto tiap slot cukup lewat
+ *    `sourceId` (di-lookup balik ke state.photos lewat photoById() saat
+ *    render/export), jadi layout-engine.js tidak perlu tahu bedanya -
+ *    field sourcePath yang dilewatkannya tetap ada di object slot tapi
+ *    memang tidak dipakai.
+ *  - Foto TIDAK dipersist ke localStorage (File object tidak bisa
+ *    diserialisasi ke JSON) - PERSIS SAMA seperti perilaku versi CEP:
+ *    di sana pun state.photos selalu direset ke [] tiap sesi baru
+ *    (lihat load()), jadi ini bukan pengurangan fitur, cuma
+ *    melanjutkan perilaku yang sudah ada.
+ *  - Fitur chroma-key / "Ganti Background" berbasis deteksi warna foto
+ *    (bg-swap.js di versi CEP) SENGAJA TIDAK diikutkan di tahap ini
+ *    (lihat catatan proyek: fitur ini dipangkas dari roadmap konversi
+ *    web app). `photo.bg` di sini HANYA warna solid di belakang PNG
+ *    transparan (sama seperti swatch "Ganti Background" per foto di
+ *    kartu Sumber Foto versi CEP) - bukan chroma-key, jadi tetap valid
+ *    dipertahankan.
+ * ===================================================================== */
+(function (root) {
+  "use strict";
+
+  var KEY = "pfweb.state.v1";
+
+  var DEFAULT_SIZES = [
+    { id: "4x6", label: "4x6", width: 40, height: 60 },
+    { id: "3x4", label: "3x4", width: 30, height: 40 },
+    { id: "2x3", label: "2x3", width: 20, height: 30 },
+    { id: "2R", label: "2R", width: 60, height: 90 },
+    { id: "3R", label: "3R", width: 89, height: 127 },
+    { id: "4R", label: "4R", width: 102, height: 152 },
+    { id: "5R", label: "5R", width: 127, height: 178 },
+    { id: "6R", label: "6R", width: 152, height: 203 },
+    { id: "8R", label: "8R", width: 203, height: 254 }
+  ];
+
+  /* paket cetak foto default: sama seperti tombol "Paket Cetak Foto" (4x6=4, 3x4=4, 2x3=6) */
+  var PRINT_PACKAGE = [
+    { sizeId: "4x6", quantity: 4 },
+    { sizeId: "3x4", quantity: 4 },
+    { sizeId: "2x3", quantity: 6 }
+  ];
+
+  var defaults = {
+    items: [],
+    media: { type: "A5", orientation: "portrait", margin: 4.5, gap: 0, customWidth: 210, customHeight: 297 },
+    options: {
+      offsetBorder: 1.5,
+      noBorder: false,
+      rotateMode: "auto",
+      cutGuide: false,
+      grouping: "flat",
+      fitMode: "fill",
+      position: "center"
+    }
+  };
+
+  var COLORS = ["#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
+
+  /* preset warna background standar pas foto (di belakang PNG transparan).
+     value "" = tanpa background (transparan, perilaku default). */
+  var BG_PRESETS = [
+    { id: "none", label: "Transparan", value: "" },
+    { id: "white", label: "Putih", value: "#ffffff" },
+    { id: "red", label: "Merah", value: "#e0201f" },
+    { id: "blue", label: "Biru", value: "#1a56db" },
+    { id: "lightblue", label: "Biru Muda", value: "#4a90d9" },
+    { id: "gray", label: "Abu-abu", value: "#a0a0a0" }
+  ];
+
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+  var state = clone(defaults);
+  state.photos = [];
+
+  /** Bangun daftar item default (paket cetak foto) untuk sesi baru. */
+  function defaultItems() {
+    return PRINT_PACKAGE.map(function (p) {
+      var preset = DEFAULT_SIZES.filter(function (s) { return s.id === p.sizeId; })[0] || DEFAULT_SIZES[0];
+      return {
+        id: uid("item"),
+        sizeId: preset.id,
+        label: preset.label,
+        width: preset.width,
+        height: preset.height,
+        quantity: p.quantity,
+        sourceId: ""
+      };
+    });
+  }
+
+  function load() {
+    /* PERSIS SAMA seperti versi CEP: tiap sesi baru (buka halaman)
+       selalu kembali ke kondisi default - foto kosong, order = paket
+       cetak foto, media/opsi default. save() di bawah tetap menulis ke
+       localStorage utk paritas dgn versi CEP (belum dipakai utk apa2 -
+       versi CEP sendiri juga tidak pernah membaca baliknya saat load).
+       Resume otomatis antar sesi belum termasuk scope tahap ini - kalau
+       nanti dibutuhkan, ini titik yang tepat utk ditambahkan. */
+    state.photos = [];
+    state.items = defaultItems();
+    state.media = clone(defaults.media);
+    state.options = clone(defaults.options);
+  }
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify({ media: state.media, options: state.options })); } catch (e) {}
+  }
+
+  function uid(prefix) {
+    return (prefix || "id") + "-" + Math.random().toString(36).substr(2, 7);
+  }
+
+  function nextColor() {
+    return COLORS[state.photos.length % COLORS.length];
+  }
+
+  /** Tambah foto dari File object (input picker atau drag-drop). */
+  function addPhoto(file) {
+    var thumb = "";
+    try { thumb = URL.createObjectURL(file); } catch (e) { thumb = ""; }
+    var p = { id: uid("photo"), name: file.name, file: file, thumb: thumb, color: nextColor(), bg: "" };
+    state.photos.push(p);
+    return p;
+  }
+
+  /** Set warna background (hex "#rrggbb" atau "" untuk transparan) untuk satu foto sumber. */
+  function setPhotoBg(id, hex) {
+    var p = photoById(id);
+    if (!p) return;
+    p.bg = hex || "";
+  }
+
+  function removePhoto(id) {
+    var p = photoById(id);
+    if (p && p.thumb) { try { URL.revokeObjectURL(p.thumb); } catch (e) {} }
+    state.photos = state.photos.filter(function (x) { return x.id !== id; });
+    state.items.forEach(function (it) { if (it.sourceId === id) it.sourceId = ""; });
+  }
+
+  function addItem(sizeId) {
+    var preset = DEFAULT_SIZES.filter(function (s) { return s.id === sizeId; })[0] || DEFAULT_SIZES[0];
+    var item = {
+      id: uid("item"),
+      sizeId: preset.id,
+      label: preset.label,
+      width: preset.width,
+      height: preset.height,
+      quantity: preset.id === "2x3" ? 6 : 4,
+      sourceId: state.photos.length ? state.photos[0].id : ""
+    };
+    state.items.push(item);
+    return item;
+  }
+
+  function removeItem(id) {
+    state.items = state.items.filter(function (i) { return i.id !== id; });
+  }
+
+  function photoById(id) {
+    return state.photos.filter(function (p) { return p.id === id; })[0] || null;
+  }
+
+  function reset() {
+    state.photos.forEach(function (p) { if (p.thumb) { try { URL.revokeObjectURL(p.thumb); } catch (e) {} } });
+    state.photos = [];
+    state.items = defaultItems();
+    state.media = clone(defaults.media);
+    state.options = clone(defaults.options);
+    clearEditorState();
+    save();
+  }
+
+  /** Membangun job object untuk PFLayout.generate() - bentuk output
+      disamakan persis dengan versi CEP supaya layout-engine.js reusable
+      tanpa perubahan (lihat catatan kepala file). */
+  function buildJob() {
+    var items = state.items.map(function (it) {
+      var src = photoById(it.sourceId);
+      return {
+        id: it.sizeId + "|" + it.id.substr(-4),
+        sizeId: it.sizeId,
+        label: it.label,
+        width: Number(it.width),
+        height: Number(it.height),
+        quantity: Number(it.quantity),
+        sourceId: it.sourceId,
+        sourcePath: "",
+        backgroundColor: src ? (src.bg || "") : ""
+      };
+    });
+    return { items: items, media: clone(state.media), options: clone(state.options) };
+  }
+
+  load();
+
+  /* ---------------- slot editor: overrides & duplicates ----------------
+     Dipakai TAHAP 3 (Slot Editor interaktif). Beda pendekatan dari CEP:
+     di CEP, "state" slot yang sudah di-generate itu DOKUMEN ILLUSTRATOR
+     itu sendiri (host/main.jsx baca ulang lewat metadata item.note tiap
+     kali perlu tahu kondisi slot). Di web tidak ada dokumen terpisah -
+     kita SENDIRI yang jadi sumber kebenarannya, jadi cukup disimpan
+     langsung di memori di sini, tidak perlu "baca ulang dari kanvas".
+
+     - `overrides[slotId]` = edit manual pada slot ASLI hasil
+       PFLayout.generate() (dikunci lewat slotId yang sama seperti versi
+       CEP - lihat catatan reconcile di CLAUDE.md soal batasan stabilitas
+       slotId antar regenerate). dx/dy = geser posisi frame dari titik
+       hasil algoritma packing (mm) - INI PADANAN api.nudge versi CEP.
+       crop = pan+zoom foto DI DALAM frame (padanan api.crop). rotationExtra
+       = rotasi TAMBAHAN pada KONTEN foto SAJA, tidak mengubah ukuran/
+       footprint frame (lihat catatan CLAUDE.md kenapa ini SENGAJA beda
+       dari rotate90 versi CEP yang memutar frame+border sekaligus -
+       potensi tabrakan sama slot tetangga kalau frame ikut diputar tanpa
+       layout-engine ikut menghitung ulang). sourceId = "" berarti tidak
+       di-override (tetap ikut pilihan Order Ukuran); string non-kosong
+       berarti foto slot ini diganti manual, lepas dari Order Ukuran.
+       backgroundColor = null berarti tidak di-override (ikut warna bg
+       foto sumbernya); string (termasuk "" utk transparan) berarti
+       di-override manual.
+     - `duplicates` = daftar slot HASIL DUPLIKAT, masing-masing objek
+       BERDIRI SENDIRI (bukan lewat overrides) karena tidak ikut disusun
+       ulang oleh layout-engine sama sekali - padanan `duplicateGroups`
+       versi CEP. */
+  var overrides = {};
+  var duplicates = [];
+
+  function emptyOverride() {
+    return { dx: 0, dy: 0, crop: { x: 0, y: 0, scale: 100 }, rotationExtra: 0, flipH: false, flipV: false, sourceId: "", backgroundColor: null };
+  }
+
+  function getOverride(slotId) { return overrides[slotId] || null; }
+
+  function ensureOverride(slotId) {
+    if (!overrides[slotId]) overrides[slotId] = emptyOverride();
+    return overrides[slotId];
+  }
+
+  function nudgeOverride(slotId, dxMm, dyMm) {
+    var o = ensureOverride(slotId);
+    o.dx += Number(dxMm) || 0;
+    o.dy += Number(dyMm) || 0;
+  }
+
+  /** Dipakai saat drag mouse (posisi ABSOLUT relatif ke titik hasil
+      algoritma packing, beda dari nudgeOverride yang MENAMBAH delta -
+      drag butuh "set langsung" supaya elemen persis ikut kursor tanpa
+      efek numerik berlipat tiap event mousemove). */
+  function setOverridePos(slotId, dxMm, dyMm) {
+    var o = ensureOverride(slotId);
+    o.dx = Number(dxMm) || 0;
+    o.dy = Number(dyMm) || 0;
+  }
+
+  function setDuplicatePos(slotId, x, y) {
+    var d = duplicateById(slotId);
+    if (!d) return;
+    d.x = Number(x) || 0;
+    d.y = Number(y) || 0;
+  }
+
+  function setOverrideCrop(slotId, patch) {
+    var o = ensureOverride(slotId);
+    if (patch.dx !== undefined) o.crop.x += Number(patch.dx) || 0;
+    if (patch.dy !== undefined) o.crop.y += Number(patch.dy) || 0;
+    if (patch.scale !== undefined) o.crop.scale = Math.max(20, Math.min(600, (Number(o.crop.scale) || 100) + Number(patch.scale)));
+    if (patch.reset) o.crop = { x: 0, y: 0, scale: 100 };
+  }
+
+  function rotateOverride(slotId) {
+    var o = ensureOverride(slotId);
+    o.rotationExtra = (Number(o.rotationExtra) + 90) % 360;
+  }
+
+  function flipOverride(slotId, axis) {
+    var o = ensureOverride(slotId);
+    if (axis === "h") o.flipH = !o.flipH;
+    if (axis === "v") o.flipV = !o.flipV;
+  }
+
+  function setOverrideSource(slotId, sourceId) {
+    var o = ensureOverride(slotId);
+    o.sourceId = sourceId || "";
+  }
+
+  function setOverrideBg(slotId, hex) {
+    var o = ensureOverride(slotId);
+    o.backgroundColor = (hex === null) ? null : (hex || "");
+  }
+
+  function resetOverride(slotId) { delete overrides[slotId]; }
+
+  /** resolved = data slot yang SUDAH digabung dengan override (dari
+      render pass) - dipakai sebagai titik awal duplikat supaya salinan
+      persis meniru tampilan slot aslinya saat tombol Duplikat ditekan. */
+  /** `resolved.x/y` di sini SUDAH berupa POSISI TARGET yang diinginkan
+      (pemanggil di app.js yang menghitung arah atas/bawah/kiri/kanan dari
+      tombol dpad-plus, lihat renderEditor()) - fungsi ini cuma clamp
+      supaya tidak keluar batas lembar lalu menyimpannya sebagai slot
+      duplikat baru yang berdiri sendiri. */
+  function duplicateSlot(resolved, sheetIndex, sheetW, sheetH) {
+    var dup = {
+      slotId: resolved.slotId + "-copy-" + uid("").replace(/^id-/, ""),
+      sheetIndex: sheetIndex,
+      sizeId: resolved.sizeId,
+      label: resolved.label,
+      x: Math.max(0, Math.min(resolved.x, Math.max(0, sheetW - resolved.width))),
+      y: Math.max(0, Math.min(resolved.y, Math.max(0, sheetH - resolved.height))),
+      width: resolved.width,
+      height: resolved.height,
+      physicalWidth: resolved.physicalWidth,
+      physicalHeight: resolved.physicalHeight,
+      rotation: resolved.rotation,
+      offsetBorder: resolved.offsetBorder,
+      sourceId: resolved.sourceId,
+      backgroundColor: resolved.backgroundColor || "",
+      crop: { x: resolved.crop.x, y: resolved.crop.y, scale: resolved.crop.scale },
+      rotationExtra: resolved.rotationExtra || 0,
+      flipH: !!resolved.flipH,
+      flipV: !!resolved.flipV
+    };
+    duplicates.push(dup);
+    return dup;
+  }
+
+  function removeDuplicate(slotId) {
+    duplicates = duplicates.filter(function (d) { return d.slotId !== slotId; });
+  }
+
+  function isDuplicate(slotId) {
+    return duplicates.some(function (d) { return d.slotId === slotId; });
+  }
+
+  function duplicateById(slotId) {
+    return duplicates.filter(function (d) { return d.slotId === slotId; })[0] || null;
+  }
+
+  function clearEditorState() {
+    overrides = {};
+    duplicates = [];
+  }
+
+  root.PFState = {
+    get: function () { return state; },
+    save: save,
+    reset: reset,
+    uid: uid,
+    sizes: DEFAULT_SIZES,
+    colors: COLORS,
+    bgPresets: BG_PRESETS,
+    addPhoto: addPhoto,
+    setPhotoBg: setPhotoBg,
+    removePhoto: removePhoto,
+    addItem: addItem,
+    removeItem: removeItem,
+    photoById: photoById,
+    buildJob: buildJob,
+    /* slot editor (tahap 3) */
+    getOverride: getOverride,
+    nudgeOverride: nudgeOverride,
+    setOverridePos: setOverridePos,
+    setOverrideCrop: setOverrideCrop,
+    rotateOverride: rotateOverride,
+    flipOverride: flipOverride,
+    setOverrideSource: setOverrideSource,
+    setOverrideBg: setOverrideBg,
+    resetOverride: resetOverride,
+    duplicateSlot: duplicateSlot,
+    removeDuplicate: removeDuplicate,
+    isDuplicate: isDuplicate,
+    duplicateById: duplicateById,
+    setDuplicatePos: setDuplicatePos,
+    duplicates: function () { return duplicates; }
+  };
+})(typeof window !== "undefined" ? window : this);
+
+
+/* ==== src/js/layout-engine.js ==== */
+/* =====================================================================
+ * client/js/layout-engine.js (PFLayout)
+ * ---------------------------------------------------------------------
+ * Mesin penyusun layout pas-foto ke lembar cetak (ES5 - aman untuk
+ * CEP/Chromium lama). Murni kalkulasi geometri, tidak menyentuh DOM
+ * atau Illustrator.
+ *
+ * mergeRowsBySize() dipanggil di awal build(), sebelum data dikirim ke
+ * packReferenceA4/A5, packSheet, dan packHorizontalShelf: baris-baris
+ * Order Ukuran dengan ukuran fisik identik digabung jadi satu pool item
+ * (qty gabungan) supaya kapasitas grid/blok dihitung benar, sementara
+ * identitas asli tiap baris (foto, warna latar, label, sizeId) tetap
+ * tersimpan di `segments` dan dikonsumsi berurutan lewat nextSegment().
+ * JANGAN hapus langkah ini — tanpanya, media dengan >1 baris ukuran
+ * sama (A5, 10R, dst) kembali menyusun layout dengan berantakan/ada
+ * gap. Detail bug & alasan lengkap: lihat CHANGELOG.md versi 2.6.0.
+ * ===================================================================== */
+(function (root) {
+  "use strict";
+
+  var MEDIA_SIZES = {
+    A3: [297, 420],
+    A4: [210, 297],
+    A5: [148, 210],
+    A6: [105, 148],
+    LETTER: [216, 279],
+    "4R": [102, 152],
+    "10R": [254, 305],
+    "10x15": [100, 150],
+    "20x30": [200, 300]
+  };
+
+  var EPS = 0.001;
+  var MIN_DIM = 8;
+
+  /* Marjin atas artboard secara default TIDAK mengikuti parameter "margin"
+     input (yang mengatur marjin kiri/kanan/bawah, default 4.5mm). Marjin
+     atas selalu memakai nilai tetap ini kecuali job.media.marginTop
+     dikirim secara eksplisit oleh pemanggil. */
+  var DEFAULT_TOP_MARGIN = 5;
+
+  function r2(v) { return Math.round(v * 100) / 100; }
+  function clampNum(v, d) { v = Number(v); return isFinite(v) ? v : d; }
+
+  function borderPitchGap(gap, offsetBorder) {
+    var g = clampNum(gap, 0);
+    var o = clampNum(offsetBorder, 0);
+    if (g < 0) g = 0;
+    if (o < 0) o = 0;
+    return r2(g + 2 * o);
+  }
+
+  function sameSize(item, w, h) {
+    return Math.abs(item.w - w) < 0.01 && Math.abs(item.h - h) < 0.01;
+  }
+
+  function findSize(pool, w, h) {
+    for (var i = 0; i < pool.length; i++) {
+      if (sameSize(pool[i], w, h)) return pool[i];
+    }
+    return null;
+  }
+
+  function onlyPassportSizes(pool) {
+    if (!pool.length) return false;
+    for (var i = 0; i < pool.length; i++) {
+      if (!sameSize(pool[i], 40, 60) && !sameSize(pool[i], 30, 40) && !sameSize(pool[i], 20, 30)) return false;
+    }
+    return !!(findSize(pool, 40, 60) || findSize(pool, 30, 40) || findSize(pool, 20, 30));
+  }
+
+  /* nextSegment: ambil "segmen" (baris order asli) berikutnya yang masih
+     punya sisa qty di dalam satu pool item gabungan `it`. Segmen dipakai
+     hanya untuk menentukan identitas foto sumber/warna latar/label per
+     SLOT yang dibuat - TIDAK memengaruhi perhitungan kapasitas/geometri
+     blok (yang selalu memakai it.qty gabungan, seperti sebelumnya).
+     Kalau `it` tidak punya field segments (mis. dipanggil dari kode lama
+     / pengujian unit yang belum di-update), fallback ke `it` sendiri
+     supaya tetap backward-compatible. */
+  function nextSegment(it) {
+    if (!it || !it.segments || !it.segments.length) return null;
+    for (var i = 0; i < it.segments.length; i++) {
+      if (it.segments[i].qty > 0) return it.segments[i];
+    }
+    return null;
+  }
+
+  function addSlot(slots, it, x, y, w, h, rot, offsetBorder) {
+    if (!it || it.qty <= 0) return false;
+    var seg = nextSegment(it);
+    var sourceId = seg ? seg.srcId : it.srcId;
+    var sourcePath = seg ? seg.srcPath : (it.srcPath || "");
+    var bg = seg ? seg.bg : (it.bg || "");
+    var label = seg ? seg.label : it.label;
+    var sizeId = seg ? seg.sizeId : (it.sizeId || it.id);
+    /* Geometry memakai pool gabungan, tetapi identitas slot tetap mengikuti
+       baris order asal agar override generate ulang tidak tertukar. */
+    var slotId = seg ? (seg.id + "-" + (seg.seq++)) : (it.id + "-" + (it.seq++));
+    slots.push({
+      slotId: slotId,
+      sizeId: sizeId,
+      label: label,
+      sourceId: sourceId,
+      sourcePath: sourcePath || "",
+      x: r2(x),
+      y: r2(y),
+      width: r2(w),
+      height: r2(h),
+      physicalWidth: it.w,
+      physicalHeight: it.h,
+      rotation: rot,
+      crop: { x: 0, y: 0, scale: 100 },
+      offsetBorder: offsetBorder,
+      backgroundColor: bg || ""
+    });
+    it.qty--;
+    if (seg) seg.qty--;
+    return true;
+  }
+
+  function templateFits(area, w, h) {
+    return area.w + EPS >= w && area.h + EPS >= h;
+  }
+
+  function hasRemaining(pool) {
+    for (var i = 0; i < pool.length; i++) if (pool[i].qty > 0) return true;
+    return false;
+  }
+
+  /* Menggeser seluruh slot pada satu sheet secara horizontal (kiri/tengah/kanan)
+     sebagai satu kesatuan blok, tanpa mengubah susunan relatif antar slot dan
+     tanpa mengubah posisi vertikal (selalu tetap menempel di atas, sesuai
+     perilaku packing yang sudah ada). Diterapkan setelah packing selesai,
+     sehingga bekerja untuk semua strategi packing (reference A4/A5, shelf, dll)
+     tanpa perlu mengubah algoritma penyusunannya masing-masing. */
+  function applyPosition(slots, area, position) {
+    if (!slots.length) return slots;
+    var minX = Infinity, maxX = -Infinity;
+    for (var i = 0; i < slots.length; i++) {
+      if (slots[i].x < minX) minX = slots[i].x;
+      var right = slots[i].x + slots[i].width;
+      if (right > maxX) maxX = right;
+    }
+    var contentW = maxX - minX;
+    var freeW = area.w - contentW;
+    if (freeW < EPS) return slots;
+    var targetLeft;
+    if (position === "left") targetLeft = area.x;
+    else if (position === "right") targetLeft = area.x + freeW;
+    else targetLeft = area.x + freeW / 2;
+    var dx = targetLeft - minX;
+    if (Math.abs(dx) > EPS) {
+      for (var j = 0; j < slots.length; j++) slots[j].x = r2(slots[j].x + dx);
+    }
+    return slots;
+  }
+
+  function packReferenceA4(pool, area, offsetBorder, rotateMode) {
+    var d = borderPitchGap(0, offsetBorder);
+    var blockW = 200 + 5 * d;
+    var blockH = 90 + 2 * d;
+    if (!templateFits(area, blockW, blockH)) return [];
+    var p46 = findSize(pool, 40, 60), p34 = findSize(pool, 30, 40), p23 = findSize(pool, 20, 30);
+    var slots = [], x0 = area.x, y0 = area.y;
+    var stride = blockH + d;
+    var maxBlocks = Math.floor((area.h + d + EPS) / stride), b = 0;
+    for (; b < maxBlocks && p46 && p34 && p23 && p46.qty >= 4 && p34.qty >= 4 && p23.qty >= 6; b++) {
+      var y = y0 + b * stride;
+      for (var i = 0; i < 4; i++) addSlot(slots, p46, x0 + i * (40 + d), y, 40, 60, 0, offsetBorder);
+      for (var j = 0; j < 4; j++) addSlot(slots, p34, x0 + j * (40 + d), y + 60 + d, 40, 30, 90, offsetBorder);
+      var cx = x0 + 4 * (40 + d);
+      for (var r = 0; r < 3; r++) {
+        for (var c = 0; c < 2; c++) addSlot(slots, p23, cx + c * (20 + d), y + r * (30 + d), 20, 30, 0, offsetBorder);
+      }
+    }
+    if (hasRemaining(pool) && b * stride < area.h - EPS) {
+      var more = packSheet(pool, { x: area.x, y: area.y + b * stride, w: area.w, h: area.h - b * stride }, 0, rotateMode, offsetBorder);
+      for (var m = 0; m < more.length; m++) slots.push(more[m]);
+    }
+    return slots;
+  }
+
+  function packReferenceA5(pool, area, offsetBorder, rotateMode) {
+    var d = borderPitchGap(0, offsetBorder);
+    var blockW = 120 + 5 * d;
+    var blockH = 150 + 3 * d;
+    if (!templateFits(area, blockW, blockH)) return [];
+    var p46 = findSize(pool, 40, 60), p34 = findSize(pool, 30, 40), p23 = findSize(pool, 20, 30);
+    var slots = [], x0 = area.x + r2((area.w - blockW) / 2), y0 = area.y;
+    var stride = blockH + d;
+    var maxBlocks = Math.floor((area.h + d + EPS) / stride), b = 0;
+    for (; b < maxBlocks && p46 && p34 && p23 && p46.qty >= 4 && p34.qty >= 4 && p23.qty >= 6; b++) {
+      var y = y0 + b * stride;
+      for (var rr = 0; rr < 2; rr++) {
+        for (var cc = 0; cc < 2; cc++) addSlot(slots, p46, x0 + cc * (60 + d), y + rr * (40 + d), 60, 40, 90, offsetBorder);
+      }
+      var y34 = y + 2 * (40 + d);
+      for (var i = 0; i < 4; i++) addSlot(slots, p34, x0 + i * (30 + d), y34, 30, 40, 0, offsetBorder);
+      var y23 = y34 + 40 + d;
+      for (var j = 0; j < 6; j++) addSlot(slots, p23, x0 + j * (20 + d), y23, 20, 30, 0, offsetBorder);
+    }
+    if (hasRemaining(pool) && b * stride < area.h - EPS) {
+      /* FIX alignment A5: sisa item (mis. kelebihan 2x3 yang tidak cukup
+         untuk menutup satu blok referensi penuh lagi) SEBELUMNYA dikirim
+         ke packSheet() dengan area mentah { x: area.x, w: area.w } - yaitu
+         lebar penuh artboard dihitung dari margin kiri. Padahal baris-baris
+         di dalam blok referensi di atasnya (4x6/3x4/2x3) semua digambar
+         mulai dari x0 yang SUDAH DITENGAHKAN
+         (x0 = area.x + (area.w - blockW) / 2), bukan dari area.x mentah.
+         packSheet() sendiri selalu menempel ke pojok kiri-atas area yang
+         diberikan, jadi baris sisa tsb jadi rata-kiri ke margin artboard,
+         bukan sejajar dengan kolom blok referensi di atasnya - inilah
+         penyebab baris 2x3 (6 lembar) paling bawah terlihat "geser" /
+         tidak teralignment dengan susunan di atasnya. Perbaikan: kirim
+         area fallback dengan x = x0 dan w = blockW (kolom yang SAMA persis
+         dipakai blok referensi), supaya baris sisa apa pun tetap sejajar
+         pada kolom yang sama. */
+      var more = packSheet(pool, { x: x0, y: area.y + b * stride, w: blockW, h: area.h - b * stride }, 0, rotateMode, offsetBorder);
+      for (var m = 0; m < more.length; m++) slots.push(more[m]);
+    }
+    return slots;
+  }
+
+  function evaluateBlock(fr, item, w, h, rot, gap) {
+    if (w > fr.w + EPS || h > fr.h + EPS) return null;
+    var cols = Math.floor((fr.w + gap + EPS) / (w + gap));
+    var rows = Math.floor((fr.h + gap + EPS) / (h + gap));
+    if (cols < 1 || rows < 1) return null;
+    var capacity = cols * rows;
+    var n = Math.min(item.qty, capacity);
+    if (n < 1) return null;
+    /* Blok HARUS selalu berupa grid penuh (useRows x useCols terisi semua),
+       tidak boleh menyisakan sel kosong di baris terakhir DI DALAM footprint
+       blok sendiri - sel kosong semacam itu tidak pernah dikembalikan ke
+       free-rectangle pool (splitRect hanya memotong sisa di KANAN/BAWAH
+       blok), sehingga hilang percuma dan membuat susunan tampak bolong/
+       tidak rapi (paling terlihat pada media kecil di bawah A5, di mana
+       kapasitas per blok kecil sehingga baris terakhir yang tidak penuh
+       sering terjadi). Sebelumnya useCols dipaksa = cols walau baris
+       terakhir hanya terisi sebagian. Sekarang: jika n tidak habis dibagi
+       cols, baris terakhir yang tidak penuh itu TIDAK disertakan pada blok
+       ini - sisanya akan otomatis diproses lagi pada iterasi berikutnya
+       (masuk ke free-rectangle lain, misalnya sisa area di bawah blok ini)
+       sehingga tetap terpasang, hanya di grid/baris terpisah yang tetap
+       penuh. */
+    var useRows, useCols;
+    if (n <= cols) {
+      useRows = 1;
+      useCols = n;
+    } else {
+      useRows = Math.floor(n / cols);
+      useCols = cols;
+      n = useRows * cols;
+    }
+    var blockW = useCols * w + (useCols - 1) * gap;
+    var blockH = useRows * h + (useRows - 1) * gap;
+    return { item: item, w: w, h: h, rot: rot, cols: useCols, rows: useRows, count: n, blockW: blockW, blockH: blockH, usedArea: n * w * h, leftoverW: fr.w - blockW, leftoverH: fr.h - blockH };
+  }
+
+  function betterBlock(a, b) {
+    if (!b) return true;
+    if (a.usedArea > b.usedArea + EPS) return true;
+    if (a.usedArea < b.usedArea - EPS) return false;
+    if (a.rows < b.rows) return true;
+    if (a.rows > b.rows) return false;
+    var ua = a.w * a.h, ub = b.w * b.h;
+    if (ua > ub + EPS) return true;
+    if (ua < ub - EPS) return false;
+    if (a.leftoverW < b.leftoverW - EPS) return true;
+    if (a.leftoverW > b.leftoverW + EPS) return false;
+    return a.blockH < b.blockH - EPS;
+  }
+
+  function orientationsFor(item, rotateMode) {
+    var list = [];
+    var square = Math.abs(item.w - item.h) < EPS;
+    if (rotateMode === "force" && !square) { list.push({ w: item.h, h: item.w, rot: 90 }); return list; }
+    list.push({ w: item.w, h: item.h, rot: 0 });
+    if (rotateMode !== "off" && !square) list.push({ w: item.h, h: item.w, rot: 90 });
+    return list;
+  }
+
+  function chooseBlock(fr, pool, gap, rotateMode) {
+    var best = null;
+    for (var i = 0; i < pool.length; i++) {
+      var item = pool[i];
+      if (item.qty <= 0) continue;
+      var ors = orientationsFor(item, rotateMode);
+      for (var o = 0; o < ors.length; o++) {
+        var cand = evaluateBlock(fr, item, ors[o].w, ors[o].h, ors[o].rot, gap);
+        if (cand && betterBlock(cand, best)) best = cand;
+      }
+    }
+    return best;
+  }
+
+  function splitRect(fr, blockW, blockH, gap) {
+    var out = [];
+    var leftoverW = fr.w - blockW - gap;
+    var leftoverH = fr.h - blockH - gap;
+    var horizontal = leftoverW < leftoverH;
+    var rightRect, bottomRect;
+    if (horizontal) {
+      rightRect = { x: fr.x + blockW + gap, y: fr.y, w: leftoverW, h: blockH };
+      bottomRect = { x: fr.x, y: fr.y + blockH + gap, w: fr.w, h: leftoverH };
+    } else {
+      rightRect = { x: fr.x + blockW + gap, y: fr.y, w: leftoverW, h: fr.h };
+      bottomRect = { x: fr.x, y: fr.y + blockH + gap, w: blockW, h: leftoverH };
+    }
+    if (rightRect.w >= MIN_DIM && rightRect.h >= MIN_DIM) out.push(rightRect);
+    if (bottomRect.w >= MIN_DIM && bottomRect.h >= MIN_DIM) out.push(bottomRect);
+    return out;
+  }
+
+  function uniqueBandHeights(pool, remH, rotateMode) {
+    var map = {}, out = [];
+    for (var i = 0; i < pool.length; i++) {
+      var item = pool[i];
+      if (item.qty <= 0) continue;
+      var ors = orientationsFor(item, rotateMode);
+      for (var o = 0; o < ors.length; o++) {
+        var h = r2(ors[o].h);
+        if (h <= remH + EPS && !map[h]) { map[h] = true; out.push(h); }
+      }
+    }
+    out.sort(function(a,b){ return b-a; });
+    return out;
+  }
+
+  function simulateBand(pool, areaW, bandH, gap, rotateMode) {
+    var qty = [], placements = [], x = 0, used = 0, guard = 0;
+    for (var i = 0; i < pool.length; i++) qty[i] = pool[i].qty;
+    while (x < areaW - EPS && guard++ < 2000) {
+      var best = null, bestIndex = -1;
+      for (var p = 0; p < pool.length; p++) {
+        if (qty[p] <= 0) continue;
+        var item = pool[p];
+        var ors = orientationsFor(item, rotateMode);
+        for (var o = 0; o < ors.length; o++) {
+          var w = ors[o].w, h = r2(ors[o].h), remW = areaW - x;
+          if (Math.abs(h - bandH) > 0.01 || w > remW + EPS) continue;
+          var cand = { index: p, item: item, w: w, h: h, rot: ors[o].rot, area: w * h };
+          if (!best || cand.area > best.area + EPS || (Math.abs(cand.area - best.area) < EPS && cand.w > best.w)) { best = cand; bestIndex = p; }
+        }
+      }
+      if (!best) break;
+      placements.push(best);
+      qty[bestIndex]--;
+      used += best.w * best.h;
+      x += best.w + gap;
+    }
+    return { placements: placements, used: used, efficiency: bandH > 0 ? used / (areaW * bandH) : 0, leftover: areaW - (placements.length ? (x - gap) : 0), bandH: bandH };
+  }
+
+  function chooseBand(pool, areaW, remH, gap, rotateMode) {
+    var heights = uniqueBandHeights(pool, remH, rotateMode);
+    var best = null;
+    for (var i = 0; i < heights.length; i++) {
+      var sim = simulateBand(pool, areaW, heights[i], gap, rotateMode);
+      if (!sim.placements.length) continue;
+      if (!best || sim.efficiency > best.efficiency + EPS ||
+        (Math.abs(sim.efficiency - best.efficiency) < EPS && sim.used > best.used + EPS) ||
+        (Math.abs(sim.efficiency - best.efficiency) < EPS && Math.abs(sim.used - best.used) < EPS && sim.leftover < best.leftover - EPS)) {
+        best = sim;
+      }
+    }
+    return best;
+  }
+
+  function packHorizontalShelf(pool, area, gap, rotateMode, offsetBorder) {
+    var d = borderPitchGap(gap, offsetBorder);
+    var slots = [];
+    var y = area.y, maxY = area.y + area.h, guard = 0;
+    while (y < maxY - EPS && hasRemaining(pool) && guard++ < 4000) {
+      var band = chooseBand(pool, area.w, maxY - y, d, rotateMode);
+      if (!band) break;
+      var x = area.x;
+      for (var i = 0; i < band.placements.length; i++) {
+        var cand = band.placements[i];
+        addSlot(slots, cand.item, x, y, cand.w, cand.h, cand.rot, offsetBorder);
+        x += cand.w + d;
+      }
+      y += band.bandH + d;
+    }
+    return slots;
+  }
+
+  function packSheet(pool, area, gap, rotateMode, offsetBorder) {
+    /* FIX: packSheet sebelumnya memakai `gap` mentah (pitch antar-blok
+       sesuai input user, default 0) untuk seluruh perhitungan tata letak
+       (chooseBlock/evaluateBlock, splitRect, dan increment posisi X/Y),
+       TANPA pernah menambahkan alokasi ruang untuk `offsetBorder` (garis
+       potong yang digambar host MENJOROK KELUAR sejauh offsetBorder di
+       setiap sisi foto, lihat drawOffsetBorder() di host/main.jsx). Ini
+       konsisten dengan packReferenceA4()/packReferenceA5() (memakai
+       borderPitchGap(0, offsetBorder)) dan packHorizontalShelf() (memakai
+       borderPitchGap(gap, offsetBorder)) - keduanya SUDAH benar. Akibatnya,
+       khusus di packSheet, slot yang ditempel bersebelahan dengan gap=0
+       hanya berjarak 0mm secara fisik, sehingga garis offset-border milik
+       dua slot yang bertetangga saling menjorok masuk sejauh 2x
+       offsetBorder (default 2x1.5mm = 3mm) dan tumpang tindih secara
+       visual. packSheet dipakai sebagai strategi default untuk SEMUA
+       ukuran media selain A4/A5 (baik lebih kecil - mis. A6/4R/10x15 -
+       maupun lebih besar - mis. A3/10R/20x30), jadi bug ini berdampak ke
+       semua ukuran tersebut, persis seperti yang dilaporkan. */
+    var d = borderPitchGap(gap, offsetBorder);
+    var free = [{ x: area.x, y: area.y, w: area.w, h: area.h }];
+    var slots = [];
+    var guard = 0;
+    while (free.length > 0 && guard++ < 4000) {
+      free.sort(function (a, b) {
+        if (Math.abs(a.y - b.y) > EPS) return a.y - b.y;
+        if (Math.abs(a.x - b.x) > EPS) return a.x - b.x;
+        return (b.w * b.h) - (a.w * a.h);
+      });
+      var placedIndex = -1;
+      var block = null;
+      for (var i = 0; i < free.length; i++) {
+        block = chooseBlock(free[i], pool, d, rotateMode);
+        if (block) { placedIndex = i; break; }
+      }
+      if (placedIndex < 0) break;
+      var fr = free[placedIndex];
+      var placedCount = 0;
+      for (var r = 0; r < block.rows && placedCount < block.count; r++) {
+        for (var c = 0; c < block.cols && placedCount < block.count; c++) {
+          var it = block.item;
+          if (addSlot(slots, it, fr.x + c * (block.w + d), fr.y + r * (block.h + d), block.w, block.h, block.rot, offsetBorder)) placedCount++;
+        }
+      }
+      var pieces = splitRect(fr, block.blockW, block.blockH, d);
+      free.splice(placedIndex, 1);
+      for (var p = 0; p < pieces.length; p++) free.push(pieces[p]);
+    }
+    return slots;
+  }
+
+  /* mergeRowsBySize: lihat CHANGELOG.md versi 2.6.0 untuk latar belakang.
+     Menggabungkan baris-baris order (rows) yang ukuran fisiknya
+     (lebar x tinggi, dalam mm) PERSIS SAMA menjadi SATU pool item,
+     supaya SEMUA fungsi packing di atas (yang sudah ada sebelumnya,
+     TIDAK diubah sama sekali) menghitung kapasitas/grid berdasarkan
+     jumlah gabungan - bukan per baris. Urutan baris asli dipertahankan
+     di dalam `segments`, dikonsumsi berurutan oleh addSlot() lewat
+     nextSegment(), sehingga foto/warna latar tiap slot tetap benar. */
+  function mergeRowsBySize(rows) {
+    var items = [];
+    var mergedByKey = {};
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var key = r2(row.w) + "x" + r2(row.h);
+      var merged = mergedByKey[key];
+      if (!merged) {
+        merged = { id: row.id, sizeId: row.sizeId, label: row.label, w: row.w, h: row.h, qty: 0, seq: 1, segments: [] };
+        mergedByKey[key] = merged;
+        items.push(merged);
+      }
+      merged.qty += row.qty;
+      merged.segments.push({ id: row.id, seq: 1, srcId: row.srcId, srcPath: row.srcPath, bg: row.bg, label: row.label, sizeId: row.sizeId, qty: row.qty });
+    }
+    return items;
+  }
+
+  function build(job, landscape) {
+    var base;
+    if (job.media.type === "CUSTOM") {
+      var cw = clampNum(job.media.customWidth, 210);
+      var ch = clampNum(job.media.customHeight, 297);
+      if (cw <= 0 || ch <= 0) throw new Error("Ukuran custom tidak valid.");
+      base = [cw, ch];
+    } else {
+      base = MEDIA_SIZES[job.media.type] || MEDIA_SIZES.A4;
+    }
+    var pw = landscape ? base[1] : base[0];
+    var ph = landscape ? base[0] : base[1];
+    /* "margin" = marjin kiri/kanan/bawah, mengikuti input parameter panel
+       (default 4.5mm). Marjin atas SENGAJA dipisah: default-nya tetap
+       5mm (DEFAULT_TOP_MARGIN) dan tidak ikut berubah walau nilai
+       parameter "margin" diubah user, kecuali job.media.marginTop
+       dikirim eksplisit. */
+    var margin = Math.max(0, clampNum(job.media.margin, 4.5));
+    var topMargin = Math.max(0, clampNum(job.media.marginTop, DEFAULT_TOP_MARGIN));
+    var gap = Math.max(0, clampNum(job.media.gap, 0));
+    var rotateMode = (job.options && job.options.rotateMode) || "auto";
+    var noBorder = !!(job.options && job.options.noBorder);
+    var offsetBorder = noBorder ? 0 : Math.max(0, clampNum(job.options && (job.options.offsetBorder !== undefined ? job.options.offsetBorder : job.options.borderWidth), 1.5));
+    var position = (job.options && job.options.position) || "center";
+    var area = { x: margin, y: topMargin, w: r2(pw - margin * 2), h: r2(ph - topMargin - margin) };
+    if (area.w <= 0 || area.h <= 0) throw new Error("Margin terlalu besar untuk media " + job.media.type + ".");
+    var rows = [];
+    for (var i = 0; i < (job.items || []).length; i++) {
+      var it = job.items[i];
+      var qty = Math.max(0, parseInt(it.quantity, 10) || 0);
+      if (qty <= 0) continue;
+      var w = clampNum(it.width, 0), h = clampNum(it.height, 0);
+      if (w <= 0 || h <= 0) continue;
+      var fitsNormal = (w <= area.w + EPS && h <= area.h + EPS);
+      var fitsRotated = (h <= area.w + EPS && w <= area.h + EPS);
+      if (!fitsNormal && !fitsRotated) throw new Error("Ukuran " + (it.label || it.id) + " (" + w + "x" + h + "mm) lebih besar dari area cetak.");
+      rows.push({ id: it.id, sizeId: (it.sizeId || it.id), label: it.label || it.id, w: w, h: h, qty: qty, srcId: it.sourceId, srcPath: it.sourcePath || "", bg: it.backgroundColor || "" });
+    }
+    if (!rows.length) throw new Error("Tidak ada item dengan quantity > 0.");
+    /* FIX v2.6.0: gabungkan baris-baris dengan ukuran fisik sama sebelum
+       dipakai algoritma packing manapun - lihat mergeRowsBySize() di atas
+       dan catatan lengkap di kepala file ini. */
+    var items = mergeRowsBySize(rows);
+    items.sort(function (a, b) { var A = a.w * a.h, B = b.w * b.h; return A === B ? (b.h - a.h) : (B - A); });
+    var totalRequested = 0;
+    for (var t = 0; t < items.length; t++) totalRequested += items[t].qty;
+    var sheets = [];
+    var usableArea = area.w * area.h;
+    var guard = 0;
+    while (guard++ < 200) {
+      var remaining = 0;
+      for (var q = 0; q < items.length; q++) remaining += items[q].qty;
+      if (remaining <= 0) break;
+      var slots;
+      /* FIX: sebelumnya cabang default di sini selalu memakai
+         packHorizontalShelf() - algoritma "shelf/band" yang menyusun per
+         baris berdasarkan tinggi item yang PERSIS SAMA. Begitu satu baris
+         "ditutup" (pindah ke baris berikutnya), sisa ruang kosong di
+         kanan baris itu TIDAK PERNAH dipakai lagi oleh item lain yang
+         tingginya berbeda - walaupun ukurannya jelas muat (mis. foto 2x3
+         yang harusnya bisa nempel di sebelah foto 4x6 pada media 20x30,
+         tapi malah dilempar ke baris baru sendirian). Sekarang dipakai
+         packSheet() - algoritma guillotine bin-packing yang sudah ada di
+         file ini sebelumnya (lihat _internal.packSheet) tapi belum pernah
+         benar-benar dipanggil di sini. packSheet memecah sisa ruang
+         kosong di kanan & bawah tiap blok foto yang baru ditempatkan
+         menjadi rectangle bebas baru, sehingga item lain (ukuran apa pun)
+         bisa mengisi sisa ruang tersebut selama masih muat. */
+      if (!landscape && gap === 0 && onlyPassportSizes(items) && job.media.type === "A4") slots = packReferenceA4(items, area, offsetBorder, rotateMode);
+      else if (!landscape && gap === 0 && onlyPassportSizes(items) && job.media.type === "A5") slots = packReferenceA5(items, area, offsetBorder, rotateMode);
+      else slots = packSheet(items, area, gap, rotateMode, offsetBorder);
+      if (!slots.length) slots = packHorizontalShelf(items, area, gap, rotateMode, offsetBorder);
+      if (!slots.length) break;
+      slots = applyPosition(slots, area, position);
+      var used = 0;
+      for (var s = 0; s < slots.length; s++) used += slots[s].width * slots[s].height;
+      sheets.push({ index: sheets.length + 1, width: pw, height: ph, margin: margin, marginTop: topMargin, gap: gap, slots: slots, usedArea: r2(used), efficiency: r2((used / usableArea) * 100) });
+    }
+    var placed = 0, totalUsed = 0;
+    for (var k = 0; k < sheets.length; k++) { placed += sheets[k].slots.length; totalUsed += sheets[k].usedArea; }
+    var efficiency = sheets.length ? r2((totalUsed / (usableArea * sheets.length)) * 100) : 0;
+    return { media: { type: job.media.type, width: pw, height: ph, margin: margin, marginTop: topMargin, gap: gap, landscape: !!landscape }, sheets: sheets, totalSlots: totalRequested, placed: placed, unplaced: totalRequested - placed, efficiency: efficiency, options: { offsetBorder: offsetBorder, noBorder: noBorder, rotateMode: rotateMode, cutGuide: !!(job.options && job.options.cutGuide), grouping: (job.options && job.options.grouping) || "flat", fitMode: (job.options && job.options.fitMode === "fit") ? "fit" : "fill", position: position } };
+  }
+
+  function scoreResult(res) { return (-res.sheets.length * 1000) + res.efficiency; }
+
+  function generate(job) {
+    if (!job || !job.media) throw new Error("Job tidak valid.");
+    var mode = job.media.orientation || "auto";
+    if (mode === "portrait") return build(job, false);
+    if (mode === "landscape") return build(job, true);
+    if ((job.media.type === "A4" || job.media.type === "A5") && (job.media.gap === 0 || job.media.gap === "0" || job.media.gap === undefined)) return build(job, false);
+    var p = build(job, false);
+    var l = build(job, true);
+    return scoreResult(l) > scoreResult(p) ? l : p;
+  }
+
+  root.PFLayout = {
+    generate: generate,
+    mediaSizes: MEDIA_SIZES,
+    _internal: { packSheet: packSheet, splitRect: splitRect, chooseBlock: chooseBlock, mergeRowsBySize: mergeRowsBySize }
+  };
+})(typeof window !== "undefined" ? window : this);
+
+
+/* ==== src/js/app.js ==== */
+/* =====================================================================
+ * src/js/app.js - controller Pas Foto Web (TAHAP 1 + TAHAP 2).
+ * ---------------------------------------------------------------------
+ * ADAPTASI dari client/js/app.js milik plugin CEP.
+ *
+ * Tahap 1 (form): Sumber Foto, Order Ukuran, Media & Layout - semuanya
+ * murni form yang menulis ke state.js, sama seperti versi CEP.
+ *
+ * Tahap 2 (preview visual): fungsi preview() di bawah adalah PORT dari
+ * preview() versi CEP - ternyata sudah DOM/CSS murni (div absolut +
+ * background-image utk foto), bukan Illustrator-dependent, jadi bisa
+ * dipakai ulang hampir 1:1. Satu-satunya penyesuaian: pencocokan foto
+ * per slot lewat sourceId (bukan path filesystem, lihat state.js).
+ *
+ * SENGAJA BELUM ADA (menyusul di tahap berikutnya, lihat CLAUDE.md):
+ *  - Slot editor interaktif (drag/crop/rotate/flip/bg per-slot/duplicate)
+ *    - tahap 3.
+ *  - Export PDF / print - tahap 4.
+ *  - Cut-guide (garis panduan potong) di layar preview - di versi CEP pun
+ *    itu cuma digambar ke artboard Illustrator saat Generate, bukan
+ *    bagian dari preview panel; ekuivalennya nanti muncul di hasil
+ *    export PDF (tahap 4).
+ *  - Chroma-key ganti background otomatis (DIPANGKAS dari roadmap -
+ *    lihat konteks proyek/CLAUDE.md). Warna background per foto (swatch
+ *    solid di kartu Sumber Foto) TETAP ADA - itu bukan chroma-key, cuma
+ *    warna polos di belakang PNG transparan, sama seperti versi CEP.
+ *
+ * Tidak ada koneksi ke Illustrator/CEP sama sekali di file ini - semua
+ * foto berupa File object browser biasa (input picker / drag-drop).
+ * ===================================================================== */
+(function () {
+  "use strict";
+
+  var S = window.PFState;
+  var L = window.PFLayout;
+
+
+  /* ---------------- helpers ---------------- */
+  function $(sel) { return document.querySelector(sel); }
+  function $$(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
+  function el(tag, cls, html) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (html !== undefined) n.innerHTML = html;
+    return n;
+  }
+  function esc(s) {
+    return String(s === undefined || s === null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  /* Sama seperti isRenderable() versi CEP: browser (persis seperti
+     Chromium CEP-nya dulu) juga tidak bisa menampilkan TIFF lewat
+     <img> - butuh placeholder "TIFF" di grid, bukan thumbnail asli. */
+  function isRenderable(name) { return /\.(jpe?g|png|gif|bmp|webp)$/i.test(String(name || "")); }
+
+  function fmtCm(mm) {
+    var cm = mm / 10;
+    var s = cm.toFixed(1);
+    if (s.slice(-2) === ".0") s = s.slice(0, -2);
+    return s;
+  }
+  function sizeOptionText(label, w, h) {
+    if (/^\d+\s*x\s*\d+$/i.test(label)) return label + " cm";
+    return label + " (" + fmtCm(w) + "\u00d7" + fmtCm(h) + " cm)";
+  }
+
+  /* wraps a <input type=number> with a small stacked up/down spinner UI */
+  function attachSpinner(input) {
+    if (!input || (input.parentElement && input.parentElement.classList.contains("numfield"))) return;
+    var wrap = el("span", "numfield");
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    var spin = el("span", "spin",
+      '<button type="button" tabindex="-1">\u25b2</button><button type="button" tabindex="-1">\u25bc</button>');
+    wrap.appendChild(spin);
+    var btns = spin.querySelectorAll("button");
+    function step(dir) {
+      var stepVal = parseFloat(input.step) || 1;
+      var val = (parseFloat(input.value) || 0) + dir * stepVal;
+      var min = input.min !== "" ? parseFloat(input.min) : null;
+      var max = input.max !== "" ? parseFloat(input.max) : null;
+      if (min !== null && val < min) val = min;
+      if (max !== null && val > max) val = max;
+      input.value = (Math.round(val * 100) / 100);
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    btns[0].onclick = function (e) { e.preventDefault(); step(1); };
+    btns[1].onclick = function (e) { e.preventDefault(); step(-1); };
+  }
+
+  var toastTimer = null;
+  function toast(msg, kind) {
+    var t = $("#toast");
+    t.textContent = msg;
+    t.className = "toast show " + (kind || "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.className = "toast " + (kind || ""); }, 2600);
+  }
+
+  /* ---------------- photo source ---------------- */
+  function renderPhotos() {
+    var grid = $("#photoGrid");
+    var st = S.get();
+    grid.innerHTML = "";
+    $("#photoHint").style.display = st.photos.length ? "none" : "block";
+
+    st.photos.forEach(function (p) {
+      var card = el("div", "photo-card");
+      var media = isRenderable(p.name)
+        ? '<img class="thumb" src="' + esc(p.thumb) + '" alt="" onerror="this.outerHTML=\'<div class=&quot;ph&quot;>TIFF</div>\'" />'
+        : '<div class="ph">\ud83d\uddbc</div>';
+
+      var curBg = p.bg || "";
+      var presetValues = S.bgPresets.map(function (bp) { return bp.value; });
+      var isCustom = curBg !== "" && presetValues.indexOf(curBg) === -1;
+      var bgSwatches = S.bgPresets.map(function (bp) {
+        var active = (curBg === bp.value) ? " active" : "";
+        var noneCls = (bp.value === "") ? " none" : "";
+        var style = bp.value ? ' style="background:' + esc(bp.value) + '"' : "";
+        return '<button type="button" class="bg-swatch' + noneCls + active + '" data-bg="' + esc(bp.value) + '" title="' + esc(bp.label) + '"' + style + '></button>';
+      }).join("");
+
+      card.innerHTML =
+        media +
+        '<button class="del" title="Hapus">\u00d7</button>' +
+        '<div class="meta"><span class="dot" style="background:' + esc(p.color) + '"></span>' +
+        '<input class="nm" value="' + esc(p.name) + '" title="' + esc(p.name) + '" /></div>' +
+        '<div class="bg-row" title="Warna background di belakang foto (PNG transparan)">' +
+          bgSwatches +
+          '<label class="bg-custom' + (isCustom ? " active" : "") + '" title="Warna custom">' +
+            '<input type="color" value="' + esc(isCustom ? curBg : "#ffffff") + '" />' +
+          '</label>' +
+        '</div>';
+
+      card.querySelector(".del").onclick = function () {
+        S.removePhoto(p.id); renderPhotos(); renderOrder(); preview();
+      };
+      card.querySelector(".nm").onchange = function (e) {
+        p.name = e.target.value; renderOrder();
+      };
+      Array.prototype.forEach.call(card.querySelectorAll("[data-bg]"), function (btn) {
+        btn.onclick = function () {
+          S.setPhotoBg(p.id, btn.getAttribute("data-bg"));
+          renderPhotos(); preview();
+        };
+      });
+      var customInput = card.querySelector(".bg-custom input");
+      customInput.oninput = function (e) {
+        S.setPhotoBg(p.id, e.target.value);
+        preview();
+      };
+      customInput.onchange = function () { renderPhotos(); };
+      grid.appendChild(card);
+    });
+  }
+
+  var ACCEPT_RE = /\.(jpe?g|png|tiff?)$/i;
+
+  function addPhotoFiles(files) {
+    if (!files || !files.length) return;
+    var added = 0;
+    Array.prototype.forEach.call(files, function (f) {
+      if (!ACCEPT_RE.test(f.name)) return;
+      S.addPhoto(f);
+      added++;
+    });
+    if (!added) { toast("Hanya JPG / PNG / TIFF yang didukung.", "err"); return; }
+    var st = S.get();
+    st.items.forEach(function (it) {
+      if (!it.sourceId && st.photos.length) it.sourceId = st.photos[0].id;
+    });
+    renderPhotos(); renderOrder(); preview();
+    toast(added + " foto ditambahkan.", "ok");
+  }
+
+  $("#btnAddPhoto").onclick = function () { $("#filePicker").click(); };
+  $("#filePicker").onchange = function (e) {
+    addPhotoFiles(e.target.files);
+    e.target.value = ""; /* reset supaya pilih file yang sama lagi tetap trigger onchange */
+  };
+
+  var dz = $("#dropZone");
+  ["dragenter", "dragover"].forEach(function (ev) {
+    dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.add("over"); });
+  });
+  ["dragleave", "drop"].forEach(function (ev) {
+    dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.remove("over"); });
+  });
+  dz.addEventListener("drop", function (e) {
+    var list = e.dataTransfer && e.dataTransfer.files;
+    if (!list || !list.length) return;
+    addPhotoFiles(list);
+  });
+
+  /* ---------------- order ---------------- */
+  function renderSizePresets() {
+    var sel = $("#sizePreset");
+    sel.innerHTML = "";
+    S.sizes.forEach(function (s) {
+      var o = el("option");
+      o.value = s.id;
+      o.textContent = sizeOptionText(s.label, s.width, s.height);
+      sel.appendChild(o);
+    });
+  }
+
+  function renderOrder() {
+    var wrap = $("#orderList");
+    var st = S.get();
+    wrap.innerHTML = "";
+    $("#orderHint").style.display = st.items.length ? "none" : "block";
+
+    var showSrc = st.photos.length > 1;
+
+    st.items.forEach(function (it) {
+      var row = el("div", "order-row" + (showSrc ? " has-src" : ""));
+      var opts = st.photos.map(function (p) {
+        return '<option value="' + esc(p.id) + '"' + (p.id === it.sourceId ? " selected" : "") + '>' + esc(p.name) + "</option>";
+      }).join("");
+      row.innerHTML =
+        '<span class="tag">' + esc(it.label) + "</span>" +
+        '<input class="input w" type="number" step="1" min="5" value="' + it.width + '" title="Lebar (mm)" />' +
+        '<input class="input h" type="number" step="1" min="5" value="' + it.height + '" title="Tinggi (mm)" />' +
+        '<input class="input q" type="number" step="1" min="1" value="' + it.quantity + '" title="Quantity" />' +
+        (showSrc ? '<select class="input src">' + (opts || '<option value="">\u2014 pilih foto \u2014</option>') + "</select>" : "") +
+        '<button class="x" title="Hapus baris"><svg class="ic"><use xlink:href="#i-trash"/></svg></button>';
+
+      row.querySelector(".w").onchange = function (e) { it.width = Number(e.target.value) || 10; preview(); };
+      row.querySelector(".h").onchange = function (e) { it.height = Number(e.target.value) || 10; preview(); };
+      row.querySelector(".q").onchange = function (e) { it.quantity = Math.max(0, parseInt(e.target.value, 10) || 0); preview(); };
+      if (showSrc) row.querySelector(".src").onchange = function (e) { it.sourceId = e.target.value; preview(); };
+      row.querySelector(".x").onclick = function () { S.removeItem(it.id); renderOrder(); preview(); };
+      attachSpinner(row.querySelector(".w"));
+      attachSpinner(row.querySelector(".h"));
+      attachSpinner(row.querySelector(".q"));
+      wrap.appendChild(row);
+    });
+  }
+
+  $("#btnAddItem").onclick = function () {
+    S.addItem($("#sizePreset").value);
+    renderOrder(); preview();
+  };
+
+  /* paket cetak foto: isi cepat qty default 4x6=4, 3x4=4, 2x3=6 */
+  var PRINT_PACKAGE = [
+    { sizeId: "4x6", quantity: 4 },
+    { sizeId: "3x4", quantity: 4 },
+    { sizeId: "2x3", quantity: 6 }
+  ];
+  $("#btnPrintPackage").onclick = function () {
+    var st = S.get();
+    PRINT_PACKAGE.forEach(function (p) {
+      var existing = st.items.filter(function (it) { return it.sizeId === p.sizeId; })[0];
+      if (existing) existing.quantity = p.quantity;
+      else S.addItem(p.sizeId);
+    });
+    renderOrder(); preview();
+    toast("Paket cetak foto diterapkan.", "ok");
+  };
+
+  /* ---------------- options ---------------- */
+  function bindOptions() {
+    var st = S.get();
+    $("#mediaType").value = st.media.type;
+    $("#orientation").value = st.media.orientation;
+    $("#margin").value = st.media.margin;
+    $("#gap").value = st.media.gap;
+    $("#customWidth").value = st.media.customWidth;
+    $("#customHeight").value = st.media.customHeight;
+    $("#customSizeFields").style.display = (st.media.type === "CUSTOM") ? "" : "none";
+    $("#offsetBorder").value = st.options.offsetBorder;
+    $("#noBorder").checked = !!st.options.noBorder;
+    $("#offsetBorder").disabled = !!st.options.noBorder;
+    $("#rotateMode").value = st.options.rotateMode;
+    $("#cutGuide").checked = !!st.options.cutGuide;
+    $$("input[name=\"fitMode\"]").forEach(function (r) { r.checked = (r.value === (st.options.fitMode || "fill")); });
+    $$("input[name=\"position\"]").forEach(function (r) {
+      r.checked = (r.value === (st.options.position || "center"));
+      r.closest(".pos-radio").classList.toggle("active", r.checked);
+    });
+
+    function on(id, fn) { $(id).onchange = function (e) { fn(e.target); S.save(); preview(); }; }
+    on("#mediaType", function (t) {
+      st.media.type = t.value;
+      $("#customSizeFields").style.display = (t.value === "CUSTOM") ? "" : "none";
+    });
+    on("#orientation", function (t) { st.media.orientation = t.value; });
+    on("#margin", function (t) { st.media.margin = Number(t.value) || 0; });
+    on("#gap", function (t) { st.media.gap = Number(t.value) || 0; });
+    on("#customWidth", function (t) { st.media.customWidth = Math.max(10, Number(t.value) || 210); });
+    on("#customHeight", function (t) { st.media.customHeight = Math.max(10, Number(t.value) || 297); });
+    on("#offsetBorder", function (t) { st.options.offsetBorder = Number(t.value) || 0; });
+    on("#noBorder", function (t) { st.options.noBorder = t.checked; $("#offsetBorder").disabled = t.checked; });
+    on("#rotateMode", function (t) { st.options.rotateMode = t.value; });
+    on("#cutGuide", function (t) { st.options.cutGuide = t.checked; });
+    $$("input[name=\"fitMode\"]").forEach(function (r) {
+      r.onchange = function () { if (r.checked) { st.options.fitMode = r.value; S.save(); preview(); } };
+    });
+    $$("input[name=\"position\"]").forEach(function (r) {
+      r.onchange = function () {
+        if (!r.checked) return;
+        st.options.position = r.value;
+        $$("input[name=\"position\"]").forEach(function (o) { o.closest(".pos-radio").classList.toggle("active", o.checked); });
+        S.save();
+        preview();
+      };
+    });
+
+    attachSpinner($("#margin"));
+    attachSpinner($("#gap"));
+    attachSpinner($("#customWidth"));
+    attachSpinner($("#customHeight"));
+    attachSpinner($("#offsetBorder"));
+  }
+
+  /* ---------------- media & layout panel (collapsible) ---------------- */
+  $("#mediaLayoutToggle").onclick = function () {
+    var body = $("#mediaLayoutBody");
+    var open = !body.classList.contains("open");
+    body.classList.toggle("open", open);
+    $("#mediaLayoutToggle").setAttribute("aria-expanded", String(open));
+  };
+  $("#structureToggle").onclick = function () {
+    var body = $("#structureBody");
+    var open = !body.classList.contains("open");
+    body.classList.toggle("open", open);
+    $("#structureToggle").setAttribute("aria-expanded", String(open));
+  };
+
+  /* ---------------- slot editor: state modul ----------------
+     `slotIndex` dibangun ULANG tiap kali preview() jalan (key: slotId ->
+     data resolved + referensi elemen DOM), dipakai bareng oleh drag,
+     klik-pilih, dan semua tombol panel editor supaya semuanya baca
+     sumber yang sama. */
+  var selectedSlotId = null;
+  var slotIndex = {};
+  var dragState = null;
+
+  /** Gabungkan slot ASLI (hasil PFLayout.generate(), dikunci override
+      lewat slotId - lihat state.js) atau slot DUPLIKAT (berdiri sendiri,
+      tidak lewat override) jadi satu bentuk data seragam buat dirender
+      maupun diedit. rawX/rawY (posisi murni hasil algoritma packing,
+      tanpa override) disimpan supaya drag bisa hitung delta yang benar
+      tanpa numpuk tiap kali di-drag ulang. */
+  function resolveSlot(base, sheetIndex, isDup) {
+    if (isDup) {
+      return {
+        slotId: base.slotId, sheetIndex: sheetIndex, isDup: true,
+        x: base.x, y: base.y, rawX: base.x, rawY: base.y,
+        width: base.width, height: base.height,
+        physicalWidth: base.physicalWidth, physicalHeight: base.physicalHeight,
+        rotation: base.rotation, offsetBorder: base.offsetBorder,
+        label: base.label, sizeId: base.sizeId,
+        sourceId: base.sourceId, backgroundColor: base.backgroundColor || "",
+        crop: base.crop, rotationExtra: Number(base.rotationExtra) || 0,
+        flipH: !!base.flipH, flipV: !!base.flipV
+      };
+    }
+    var ov = S.getOverride(base.slotId);
+    return {
+      slotId: base.slotId, sheetIndex: sheetIndex, isDup: false,
+      x: base.x + (ov ? ov.dx : 0), y: base.y + (ov ? ov.dy : 0),
+      rawX: base.x, rawY: base.y,
+      width: base.width, height: base.height,
+      physicalWidth: base.physicalWidth, physicalHeight: base.physicalHeight,
+      rotation: base.rotation, offsetBorder: base.offsetBorder,
+      label: base.label, sizeId: base.sizeId,
+      sourceId: (ov && ov.sourceId) || base.sourceId,
+      backgroundColor: (ov && ov.backgroundColor !== null && ov.backgroundColor !== undefined) ? ov.backgroundColor : (base.backgroundColor || ""),
+      crop: ov ? ov.crop : { x: 0, y: 0, scale: 100 },
+      rotationExtra: ov ? Number(ov.rotationExtra) || 0 : 0,
+      flipH: ov ? !!ov.flipH : false,
+      flipV: ov ? !!ov.flipV : false
+    };
+  }
+
+  function clampMm(v, max) { return Math.max(0, Math.min(v, Math.max(0, max))); }
+
+  function selectSlot(slotId) {
+    if (selectedSlotId && slotIndex[selectedSlotId] && slotIndex[selectedSlotId].slotEl) {
+      slotIndex[selectedSlotId].slotEl.classList.remove("selected");
+    }
+    selectedSlotId = slotId || null;
+    if (selectedSlotId && slotIndex[selectedSlotId] && slotIndex[selectedSlotId].slotEl) {
+      slotIndex[selectedSlotId].slotEl.classList.add("selected");
+    }
+    renderEditor();
+  }
+
+  /* ---------------- drag: geser posisi slot langsung di preview ----------------
+     Dipasang SEKALI di document (bukan per-render) supaya drag tetap
+     jalan mulus walau elemen di bawah kursor berganti-ganti tiap
+     preview() render ulang. Selama drag, elemen digeser langsung lewat
+     style.left/top (tanpa preview() ulang tiap mousemove, biar tidak
+     lag) - baru di-commit ke state.js + preview() penuh saat mouseup. */
+  function onDocMouseMove(e) {
+    if (!dragState) return;
+    var dxPx = e.clientX - dragState.startClientX;
+    var dyPx = e.clientY - dragState.startClientY;
+    if (Math.abs(dxPx) > 3 || Math.abs(dyPx) > 3) dragState.moved = true;
+    if (!dragState.moved) return;
+    var nx = clampMm(dragState.startX + dxPx / dragState.scale, dragState.sheetW - dragState.width);
+    var ny = clampMm(dragState.startY + dyPx / dragState.scale, dragState.sheetH - dragState.height);
+    dragState.curX = nx; dragState.curY = ny;
+    var info = slotIndex[dragState.slotId];
+    if (!info) return;
+    if (info.slotEl) { info.slotEl.style.left = (nx * dragState.scale) + "px"; info.slotEl.style.top = (ny * dragState.scale) + "px"; }
+    if (info.borderEl) {
+      var ob = Number(info.resolved.offsetBorder) || 0;
+      info.borderEl.style.left = ((nx - ob) * dragState.scale) + "px";
+      info.borderEl.style.top = ((ny - ob) * dragState.scale) + "px";
+    }
+  }
+  function onDocMouseUp() {
+    if (!dragState) return;
+    var ds = dragState;
+    dragState = null;
+    if (ds.moved) {
+      if (ds.isDup) S.setDuplicatePos(ds.slotId, ds.curX, ds.curY);
+      else S.setOverridePos(ds.slotId, ds.curX - ds.startRawX, ds.curY - ds.startRawY);
+      selectedSlotId = ds.slotId;
+      preview();
+    } else {
+      selectSlot(ds.slotId);
+    }
+  }
+  document.addEventListener("mousemove", onDocMouseMove);
+  document.addEventListener("mouseup", onDocMouseUp);
+
+  /* ---------------- preview visual ----------------
+     PORT dari preview() versi CEP - ternyata SUDAH DOM/CSS murni (div
+     ber-posisi absolut + background-image utk foto), BUKAN Illustrator-
+     dependent sama sekali! Satu-satunya penyesuaian: versi CEP mencocokkan
+     foto tiap slot lewat `photo.path === slot.sourcePath` (path filesystem);
+     di sini dicocokkan lewat `photo.id === slot.sourceId` karena tidak ada
+     path di web (lihat catatan sourcePath di state.js). Cut-guide (garis
+     panduan potong magenta) SENGAJA TIDAK digambar di sini - di versi CEP
+     pun itu cuma digambar langsung ke artboard Illustrator saat Generate,
+     bukan bagian dari preview panel; ekuivalennya di web nanti muncul di
+     hasil export PDF (tahap 4), bukan di preview layar.
+
+     TAHAP 3: tiap slot sekarang bisa diklik (pilih -> buka Slot Editor)
+     dan di-drag (geser posisi). Override (posisi/crop/rotate/flip/bg/
+     ganti foto) dan slot duplikat digabung lewat resolveSlot() di atas
+     sebelum dirender - lihat catatan overrides/duplicates di state.js. */
+  function preview() {
+    var box = $("#preview");
+    var msg = $("#previewMsg");
+    box.innerHTML = "";
+    msg.textContent = "";
+    msg.className = "msg";
+    slotIndex = {};
+
+    var st = S.get();
+    if (!st.items.length) { msg.textContent = "Tambahkan minimal satu ukuran."; renderEditor(); return null; }
+
+    var missing = st.items.filter(function (i) { return i.quantity > 0 && !i.sourceId; });
+    if (missing.length) {
+      msg.className = "msg err";
+      msg.textContent = "Ada baris tanpa foto sumber. Pilih foto pada setiap ukuran.";
+      renderEditor();
+      return null;
+    }
+
+    var layout;
+    try { layout = L.generate(S.buildJob()); }
+    catch (e) { msg.className = "msg err"; msg.textContent = e.message; renderEditor(); return null; }
+
+    var RV_W = 30;
+    var rawW = box.clientWidth || 320;
+    var availW = Math.max(120, rawW - RV_W - 24);
+
+    layout.sheets.forEach(function (sheet, sheetIndex) {
+      var scale = Math.min(availW / sheet.width, 3.2);
+      var wPx = Math.round(sheet.width * scale);
+      var hPx = Math.round(sheet.height * scale);
+
+      var renderList = sheet.slots.map(function (s) { return resolveSlot(s, sheetIndex, false); });
+      S.duplicates().filter(function (d) { return d.sheetIndex === sheetIndex; })
+        .forEach(function (d) { renderList.push(resolveSlot(d, sheetIndex, true)); });
+
+      var blockEl = el("div", "sheet-block");
+      blockEl.appendChild(el("div", "sheet-caption",
+        "Sheet " + sheet.index + " \u00b7 " + renderList.length + " foto \u00b7 " + sheet.efficiency.toFixed(1) + "%"));
+
+      var stage = el("div", "sheet-stage");
+
+      var hRuler = el("div", "ruler-h");
+      hRuler.style.width = wPx + "px";
+      hRuler.style.marginLeft = RV_W + "px";
+      hRuler.innerHTML = '<span class="ruler-arrow">\u25c0</span><span class="ruler-line"></span><span class="ruler-arrow">\u25b6</span>';
+      stage.appendChild(hRuler);
+
+      var row = el("div", "stage-row");
+
+      var vRuler = el("div", "ruler-v");
+      vRuler.style.height = hPx + "px";
+      vRuler.style.width = RV_W + "px";
+      vRuler.innerHTML =
+        '<span class="rv-label">' + sheet.height + " mm</span>" +
+        '<span class="rv-arrows"><span class="ruler-arrow">\u25b2</span><span class="rv-line"></span><span class="ruler-arrow">\u25bc</span></span>';
+      row.appendChild(vRuler);
+
+      var page = el("div", "sheet");
+      page.style.width = wPx + "px";
+      page.style.height = hPx + "px";
+
+      var mSide = Math.round((sheet.margin || 0) * scale);
+      var mTop = Math.round((sheet.marginTop != null ? sheet.marginTop : (sheet.margin || 0)) * scale);
+      if (mSide > 0 || mTop > 0) {
+        var guide = el("div", "sheet-guide");
+        guide.style.left = mSide + "px"; guide.style.top = mTop + "px";
+        guide.style.right = mSide + "px"; guide.style.bottom = mSide + "px";
+        page.appendChild(guide);
+      }
+
+      renderList.forEach(function (r) {
+        var baseRot = ((Number(r.rotation) || 0) % 360 + 360) % 360;
+        var totalRot = (baseRot + (Number(r.rotationExtra) || 0)) % 360;
+
+        var d = el("div", "slot" + (baseRot ? " rot" : "") + (r.slotId === selectedSlotId ? " selected" : ""));
+        d.style.left = (r.x * scale) + "px";
+        d.style.top = (r.y * scale) + "px";
+        d.style.width = (r.width * scale) + "px";
+        d.style.height = (r.height * scale) + "px";
+        d.dataset.slotId = r.slotId;
+
+        var photo = S.photoById(r.sourceId);
+
+        var swapped = (baseRot % 180) !== 0;
+        var pw = swapped ? r.height : r.width;
+        var ph = swapped ? r.width : r.height;
+
+        var zoom = (Number(r.crop.scale) || 100) / 100;
+        var sx = zoom * (r.flipH ? -1 : 1);
+        var sy = zoom * (r.flipV ? -1 : 1);
+        var panX = (Number(r.crop.x) || 0) * scale;
+        var panY = (Number(r.crop.y) || 0) * scale;
+
+        var photoEl = el("div", "slot-photo");
+        photoEl.style.width = (pw * scale) + "px";
+        photoEl.style.height = (ph * scale) + "px";
+        photoEl.style.transform =
+          "translate(-50%,-50%) translate(" + panX + "px," + panY + "px)" +
+          (totalRot ? " rotate(" + totalRot + "deg)" : "") +
+          " scale(" + sx + "," + sy + ")";
+        if (photo && isRenderable(photo.name)) {
+          photoEl.style.backgroundImage = "url('" + photo.thumb + "')";
+          photoEl.style.backgroundColor = r.backgroundColor || "transparent";
+        } else {
+          photoEl.style.background = (photo && photo.color) || "#8aa";
+        }
+        d.appendChild(photoEl);
+
+        d.title = r.label + " " + r.physicalWidth + "\u00d7" + r.physicalHeight + "mm" +
+          (baseRot ? " (rotasi " + baseRot + "\u00b0)" : "") + (r.isDup ? " \u00b7 duplikat" : "") +
+          " \u2014 klik utk edit, drag utk geser";
+        d.addEventListener("mousedown", function (e) {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          dragState = {
+            slotId: r.slotId, isDup: r.isDup,
+            startClientX: e.clientX, startClientY: e.clientY,
+            startX: r.x, startY: r.y,
+            startRawX: r.rawX, startRawY: r.rawY,
+            curX: r.x, curY: r.y,
+            scale: scale, sheetW: sheet.width, sheetH: sheet.height,
+            width: r.width, height: r.height,
+            moved: false
+          };
+        });
+        page.appendChild(d);
+
+        var bd = null;
+        if (!(layout.options && layout.options.noBorder)) {
+          var ob = Math.max(0, Number(r.offsetBorder) || 0);
+          bd = el("div", "slot-border");
+          bd.style.left = ((r.x - ob) * scale) + "px";
+          bd.style.top = ((r.y - ob) * scale) + "px";
+          bd.style.width = ((r.width + 2 * ob) * scale) + "px";
+          bd.style.height = ((r.height + 2 * ob) * scale) + "px";
+          page.appendChild(bd);
+        }
+
+        slotIndex[r.slotId] = { resolved: r, sheetIndex: sheetIndex, scale: scale, sheetW: sheet.width, sheetH: sheet.height, slotEl: d, borderEl: bd };
+      });
+
+      row.appendChild(page);
+      stage.appendChild(row);
+      blockEl.appendChild(stage);
+      box.appendChild(blockEl);
+    });
+
+    msg.className = "msg ok";
+    msg.textContent = "Efisiensi " + layout.efficiency.toFixed(1) + "% \u00b7 " +
+      layout.placed + "/" + layout.totalSlots + " foto tersusun pada " + layout.sheets.length + " lembar.";
+    if (layout.unplaced > 0) {
+      msg.className = "msg err";
+      msg.textContent += " (" + layout.unplaced + " foto tidak muat!)";
+    }
+    renderEditor();
+    return layout;
+  }
+  $("#btnPreview").onclick = preview;
+
+  /* ---------------- panel Slot Editor ----------------
+     Kolom Slot Editor sekarang SELALU kelihatan (bukan cuma muncul saat
+     ada seleksi, sejak layout 3-kolom) - jadi di sini yang di-toggle
+     adalah pesan `.sel-info.empty` + class `.disabled` pada #editorBody
+     (meredupkan kontrol, style-nya sudah ada di theme.css), bukan
+     display:none pada seluruh kartu. */
+  function renderEditor() {
+    var infoEl = $("#editorInfo");
+    var body = $("#editorBody");
+    var info = selectedSlotId ? slotIndex[selectedSlotId] : null;
+    if (!info) {
+      infoEl.className = "sel-info empty";
+      infoEl.textContent = "Klik salah satu foto di Preview untuk mulai edit (posisi, crop/zoom, rotate, flip, ganti foto/background, duplikat).";
+      body.classList.add("disabled");
+      $("#btnDeleteSlot").style.display = "none";
+      return;
+    }
+    body.classList.remove("disabled");
+    var r = info.resolved;
+    var photo = S.photoById(r.sourceId);
+
+    infoEl.className = "sel-info";
+    infoEl.innerHTML =
+      "<b>" + esc(r.label) + "</b> \u00b7 " + r.physicalWidth + "\u00d7" + r.physicalHeight + "mm" +
+      " \u00b7 Sheet " + (info.sheetIndex + 1) + (r.isDup ? " \u00b7 <i>duplikat</i>" : "") +
+      "<br><small style='color:#9a9a9a'>" + esc(photo ? photo.name : "(tanpa foto)") + "</small>";
+
+    var st = S.get();
+    var srcSel = $("#editorSourceSelect");
+    srcSel.innerHTML = st.photos.length
+      ? st.photos.map(function (p) {
+          return '<option value="' + esc(p.id) + '"' + (p.id === r.sourceId ? " selected" : "") + '>' + esc(p.name) + "</option>";
+        }).join("")
+      : '<option value="">\u2014 belum ada foto \u2014</option>';
+    srcSel.onchange = function (e) {
+      if (r.isDup) { var d = S.duplicateById(selectedSlotId); if (d) d.sourceId = e.target.value; }
+      else S.setOverrideSource(selectedSlotId, e.target.value);
+      preview();
+    };
+
+    var bgWrap = $("#editorBgRow");
+    var curBg = r.backgroundColor || "";
+    var presetValues = S.bgPresets.map(function (bp) { return bp.value; });
+    var isCustom = curBg !== "" && presetValues.indexOf(curBg) === -1;
+    bgWrap.innerHTML = S.bgPresets.map(function (bp) {
+      var active = (curBg === bp.value) ? " active" : "";
+      var noneCls = (bp.value === "") ? " none" : "";
+      var style = bp.value ? ' style="background:' + esc(bp.value) + '"' : "";
+      return '<button type="button" class="bg-swatch' + noneCls + active + '" data-bg="' + esc(bp.value) + '" title="' + esc(bp.label) + '"' + style + '></button>';
+    }).join("") +
+      '<label class="bg-custom' + (isCustom ? " active" : "") + '" title="Warna custom">' +
+      '<input type="color" value="' + esc(isCustom ? curBg : "#ffffff") + '" /></label>';
+
+    function applyBg(hex) {
+      if (r.isDup) { var d = S.duplicateById(selectedSlotId); if (d) d.backgroundColor = hex || ""; }
+      else S.setOverrideBg(selectedSlotId, hex);
+      preview();
+    }
+    Array.prototype.forEach.call(bgWrap.querySelectorAll("[data-bg]"), function (btn) {
+      btn.onclick = function () { applyBg(btn.getAttribute("data-bg")); };
+    });
+    bgWrap.querySelector(".bg-custom input").oninput = function (e) { applyBg(e.target.value); };
+
+    $("#btnDeleteSlot").style.display = r.isDup ? "" : "none";
+  }
+
+  function withSelected(dupFn, overrideFn) {
+    if (!selectedSlotId) return;
+    var info = slotIndex[selectedSlotId];
+    if (!info) return;
+    if (info.resolved.isDup) {
+      var d = S.duplicateById(selectedSlotId);
+      if (d) dupFn(d);
+    } else {
+      overrideFn(selectedSlotId);
+    }
+    preview();
+  }
+
+  $$("[data-nudge]").forEach(function (b) {
+    b.onclick = function () {
+      var v = b.getAttribute("data-nudge").split(",");
+      var dx = Number(v[0]), dy = Number(v[1]);
+      withSelected(
+        function (d) { d.x += dx; d.y += dy; },
+        function (id) { S.nudgeOverride(id, dx, dy); }
+      );
+    };
+  });
+  $$("[data-crop]").forEach(function (b) {
+    b.onclick = function () {
+      var v = b.getAttribute("data-crop").split(",");
+      var dx = Number(v[0]), dy = Number(v[1]);
+      withSelected(
+        function (d) { d.crop.x += dx; d.crop.y += dy; },
+        function (id) { S.setOverrideCrop(id, { dx: dx, dy: dy }); }
+      );
+    };
+  });
+  $$("[data-zoom]").forEach(function (b) {
+    b.onclick = function () {
+      var delta = Number(b.getAttribute("data-zoom"));
+      withSelected(
+        function (d) { d.crop.scale = Math.max(20, Math.min(600, (Number(d.crop.scale) || 100) + delta)); },
+        function (id) { S.setOverrideCrop(id, { scale: delta }); }
+      );
+    };
+  });
+  $("#btnResetCrop").onclick = function () {
+    withSelected(
+      function (d) { d.crop = { x: 0, y: 0, scale: 100 }; },
+      function (id) { S.setOverrideCrop(id, { reset: true }); }
+    );
+  };
+  $("#btnFlipH").onclick = function () {
+    withSelected(function (d) { d.flipH = !d.flipH; }, function (id) { S.flipOverride(id, "h"); });
+  };
+  $("#btnFlipV").onclick = function () {
+    withSelected(function (d) { d.flipV = !d.flipV; }, function (id) { S.flipOverride(id, "v"); });
+  };
+  $("#btnRotate").onclick = function () {
+    withSelected(
+      function (d) { d.rotationExtra = (Number(d.rotationExtra) + 90) % 360; },
+      function (id) { S.rotateOverride(id); }
+    );
+  };
+  $("#btnResetSlot").onclick = function () {
+    withSelected(
+      function (d) { d.crop = { x: 0, y: 0, scale: 100 }; d.flipH = false; d.flipV = false; d.rotationExtra = 0; },
+      function (id) { S.resetOverride(id); }
+    );
+  };
+  $("#btnDeleteSlot").onclick = function () {
+    if (!selectedSlotId) return;
+    S.removeDuplicate(selectedSlotId);
+    selectedSlotId = null;
+    preview();
+  };
+  $("#btnEditorClose").onclick = function () { selectSlot(null); };
+
+  /* Duplikat: dpad-plus (atas/bawah/kiri/kanan) - target posisi dihitung
+     di sini (offset sebesar lebar/tinggi slot ke arah yg dipilih), lalu
+     S.duplicateSlot() tinggal clamp ke batas lembar. Slot baru langsung
+     dipilih supaya bisa terus diedit (mis. ganti foto/bg) tanpa klik lagi. */
+  $$("[data-dup]").forEach(function (b) {
+    b.onclick = function () {
+      if (!selectedSlotId) return;
+      var info = slotIndex[selectedSlotId];
+      if (!info) return;
+      var r = info.resolved;
+      var dir = b.getAttribute("data-dup");
+      var dx = 0, dy = 0;
+      if (dir === "right") dx = r.width; else if (dir === "left") dx = -r.width;
+      else if (dir === "up") dy = -r.height; else if (dir === "down") dy = r.height;
+      var target = {
+        slotId: r.slotId, sizeId: r.sizeId, label: r.label,
+        x: r.x + dx, y: r.y + dy, width: r.width, height: r.height,
+        physicalWidth: r.physicalWidth, physicalHeight: r.physicalHeight,
+        rotation: r.rotation, offsetBorder: r.offsetBorder,
+        sourceId: r.sourceId, backgroundColor: r.backgroundColor,
+        crop: r.crop, rotationExtra: r.rotationExtra, flipH: r.flipH, flipV: r.flipV
+      };
+      var dup = S.duplicateSlot(target, info.sheetIndex, info.sheetW, info.sheetH);
+      selectedSlotId = dup.slotId;
+      preview();
+    };
+  });
+
+  /* ---------------- reset ---------------- */
+  $("#btnReset").onclick = function () {
+    S.reset();
+    selectedSlotId = null;
+    renderSizePresets();
+    renderPhotos();
+    renderOrder();
+    bindOptions();
+    preview();
+    toast("Semua parameter direset ke default.", "ok");
+  };
+
+  /* ---------------- layout 3 kolom: drag utk atur lebar ----------------
+     Cuma aktif secara visual di layar lebar (>=1100px, lihat theme.css)
+     - resizer disembunyikan (display:none) di layar sempit lewat CSS,
+     jadi listener di bawah aman dipasang selalu tanpa perlu deteksi
+     breakpoint di JS (drag tidak mungkin terjadi di elemen yang
+     display:none). Lebar kolom Setup (--w-a) & Slot Editor (--w-c)
+     disimpan sebagai CSS custom property di #layoutRoot, diinget lewat
+     localStorage supaya lebar yang diatur user tetap sama tiap buka
+     lagi (BEDA dari state.js - ini murni preferensi tampilan, bukan
+     bagian dari data job cetak, jadi sengaja dipisah kuncinya). */
+  function initResizableLayout() {
+    var root = $("#layoutRoot");
+    var leftEl = $("#resizerLeft");
+    var rightEl = $("#resizerRight");
+    if (!root || !leftEl || !rightEl) return;
+
+    var MIN_W = 240, MAX_W = 640;
+    var LAYOUT_KEY = "pfweb.layout.v1";
+    var widths = { a: 360, c: 360 };
+    try {
+      var saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) || "null");
+      if (saved && saved.a) widths.a = Math.max(MIN_W, Math.min(MAX_W, saved.a));
+      if (saved && saved.c) widths.c = Math.max(MIN_W, Math.min(MAX_W, saved.c));
+    } catch (e) { /* localStorage tidak tersedia - pakai default */ }
+    root.style.setProperty("--w-a", widths.a + "px");
+    root.style.setProperty("--w-c", widths.c + "px");
+
+    function persist() {
+      try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(widths)); } catch (e) {}
+    }
+
+    function startDrag(which, handleEl) {
+      return function (e) {
+        if (e.button !== undefined && e.button !== 0) return;
+        e.preventDefault();
+        handleEl.classList.add("active");
+        var startClientX = e.clientX;
+        var startW = widths[which];
+        function onMove(ev) {
+          var dx = ev.clientX - startClientX;
+          /* resizer kiri: geser kanan -> kolom Setup melebar (+dx).
+             resizer kanan: geser kanan -> kolom Preview melebar, jadi
+             kolom Slot Editor menyempit (-dx). */
+          var raw = (which === "a") ? startW + dx : startW - dx;
+          widths[which] = Math.max(MIN_W, Math.min(MAX_W, raw));
+          root.style.setProperty("--w-" + which, widths[which] + "px");
+        }
+        function onUp() {
+          handleEl.classList.remove("active");
+          document.removeEventListener("mousemove", onMove);
+          document.removeEventListener("mouseup", onUp);
+          persist();
+        }
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+      };
+    }
+    leftEl.addEventListener("mousedown", startDrag("a", leftEl));
+    rightEl.addEventListener("mousedown", startDrag("c", rightEl));
+
+    /* aksesibilitas: resizer bisa difokus (tabindex=0 di HTML) dan
+       diatur pakai tombol panah kiri/kanan, tidak cuma lewat mouse. */
+    function keyDrag(which, sign) {
+      return function (e) {
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        e.preventDefault();
+        var step = (e.key === "ArrowRight" ? 1 : -1) * sign * 20;
+        widths[which] = Math.max(MIN_W, Math.min(MAX_W, widths[which] + step));
+        root.style.setProperty("--w-" + which, widths[which] + "px");
+        persist();
+      };
+    }
+    leftEl.addEventListener("keydown", keyDrag("a", 1));
+    rightEl.addEventListener("keydown", keyDrag("c", -1));
+  }
+
+  /* ---------------- init ---------------- */
+  function init() {
+    initResizableLayout();
+    renderSizePresets();
+    renderPhotos();
+    renderOrder();
+    bindOptions();
+    preview();
+  }
+  init();
+})();
+
+</script>
+</body>
+</html>
